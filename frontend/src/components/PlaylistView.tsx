@@ -1,23 +1,26 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { api, type Playlist, type Video } from '../api/client'
+import { PlaylistHome } from './PlaylistHome'
 import { SearchBar } from './SearchBar'
 import { VideoCard } from './VideoCard'
 import { VideoPlayer } from './VideoPlayer'
 
 interface PlaylistViewProps {
-  playlistId: number
-  playlistTitle?: string
+  playlist: Playlist
+  onBack: () => void
 }
 
-export function PlaylistView({ playlistId, playlistTitle }: PlaylistViewProps) {
+export function PlaylistView({ playlist, onBack }: PlaylistViewProps) {
   const [searchQuery, setSearchQuery] = useState('')
   const [activeVideoId, setActiveVideoId] = useState<string | null>(null)
+  const [syncing, setSyncing] = useState(false)
   const cardRefs = useRef<Record<string, HTMLButtonElement | null>>({})
+  const queryClient = useQueryClient()
 
   const { data: videos = [], isLoading, error } = useQuery({
-    queryKey: ['videos', playlistId, searchQuery],
-    queryFn: () => api.listVideos(playlistId, searchQuery || undefined),
+    queryKey: ['videos', playlist.id, searchQuery],
+    queryFn: () => api.listVideos(playlist.id, searchQuery || undefined),
   })
 
   useEffect(() => {
@@ -42,10 +45,38 @@ export function PlaylistView({ playlistId, playlistTitle }: PlaylistViewProps) {
     if (id) setActiveVideoId(id)
   }
 
+  const handleSync = async () => {
+    setSyncing(true)
+    try {
+      await api.syncPlaylist(playlist.id)
+      await queryClient.invalidateQueries({ queryKey: ['videos', playlist.id] })
+      await queryClient.invalidateQueries({ queryKey: ['playlists'] })
+    } finally {
+      setSyncing(false)
+    }
+  }
+
   return (
     <div className="mx-auto flex min-h-screen max-w-3xl flex-col">
-      <header className="border-b border-slate-800 px-4 py-3">
-        <h1 className="text-lg font-bold">{playlistTitle ?? 'YouTube Playlist'}</h1>
+      <header className="flex items-center gap-2 border-b border-slate-800 px-3 py-3">
+        <button
+          type="button"
+          data-testid="back-to-playlists"
+          onClick={onBack}
+          className="shrink-0 rounded-lg bg-slate-800 px-3 py-2 text-sm text-slate-200"
+        >
+          ← Playlists
+        </button>
+        <h1 className="min-w-0 flex-1 truncate text-base font-bold">{playlist.title}</h1>
+        <button
+          type="button"
+          data-testid="sync-playlist"
+          onClick={handleSync}
+          disabled={syncing}
+          className="shrink-0 rounded-lg bg-slate-800 px-3 py-2 text-sm text-slate-200 disabled:opacity-60"
+        >
+          {syncing ? '...' : 'Sync'}
+        </button>
       </header>
 
       <VideoPlayer videoId={activeVideoId} onVideoChange={setActiveVideoId} />
@@ -77,74 +108,17 @@ export function PlaylistView({ playlistId, playlistTitle }: PlaylistViewProps) {
   )
 }
 
-interface AppShellProps {
-  initialPlaylist?: Playlist | null
-}
-
-export function PlaylistApp({ initialPlaylist = null }: AppShellProps) {
-  const [playlistUrl, setPlaylistUrl] = useState('')
-  const [selectedPlaylist, setSelectedPlaylist] = useState<Playlist | null>(initialPlaylist)
-  const [formError, setFormError] = useState<string | null>(null)
-  const [loading, setLoading] = useState(false)
-
-  const { data: playlists = [] } = useQuery({
-    queryKey: ['playlists'],
-    queryFn: api.listPlaylists,
-  })
-
-  useEffect(() => {
-    if (!selectedPlaylist && playlists.length > 0) {
-      const defaultPlaylist = playlists.find((p) => p.is_default) ?? playlists[0]
-      setSelectedPlaylist(defaultPlaylist)
-    }
-  }, [playlists, selectedPlaylist])
-
-  const handleSubmit = async (event: React.FormEvent) => {
-    event.preventDefault()
-    setFormError(null)
-    setLoading(true)
-    try {
-      const playlist = await api.createPlaylist(playlistUrl)
-      setSelectedPlaylist(playlist)
-      setPlaylistUrl('')
-    } catch (err) {
-      setFormError((err as Error).message)
-    } finally {
-      setLoading(false)
-    }
-  }
+export function PlaylistApp() {
+  const [selectedPlaylist, setSelectedPlaylist] = useState<Playlist | null>(null)
 
   if (selectedPlaylist) {
-    return <PlaylistView playlistId={selectedPlaylist.id} playlistTitle={selectedPlaylist.title} />
+    return (
+      <PlaylistView
+        playlist={selectedPlaylist}
+        onBack={() => setSelectedPlaylist(null)}
+      />
+    )
   }
 
-  return (
-    <div className="mx-auto flex min-h-screen max-w-lg flex-col justify-center gap-6 px-4">
-      <div>
-        <h1 className="text-2xl font-bold">YouTube Playlist</h1>
-        <p className="mt-2 text-sm text-slate-400">
-          Cole a URL de uma playlist pública para assistir e pesquisar vídeos no celular.
-        </p>
-      </div>
-      <form onSubmit={handleSubmit} className="flex flex-col gap-3">
-        <input
-          type="url"
-          data-testid="playlist-url-input"
-          value={playlistUrl}
-          onChange={(e) => setPlaylistUrl(e.target.value)}
-          placeholder="https://www.youtube.com/playlist?list=..."
-          className="w-full rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-sm"
-          required
-        />
-        <button
-          type="submit"
-          disabled={loading}
-          className="rounded-xl bg-yellow-400 px-4 py-3 font-semibold text-slate-900 disabled:opacity-60"
-        >
-          {loading ? 'Carregando...' : 'Carregar playlist'}
-        </button>
-        {formError && <p className="text-sm text-red-400">{formError}</p>}
-      </form>
-    </div>
-  )
+  return <PlaylistHome onOpenPlaylist={setSelectedPlaylist} />
 }
