@@ -91,6 +91,28 @@ docker compose up --build -d
 
 O SQLite fica persistido no volume Docker `app-data`. Para expor na porta 80/443, use um reverse proxy (Nginx/Caddy) apontando para `localhost:8080`.
 
+### Easypanel
+
+No painel do app, configure:
+
+| Campo | Valor |
+|-------|-------|
+| **Fonte** | GitHub → `hbribeiro77/youtubeplaylist` |
+| **Build** | Dockerfile na raiz |
+| **Porta interna** | `8080` (ou deixe o Easypanel injetar `PORT` — o app lê essa variável) |
+| **Health check** | HTTP `GET /health` |
+| **Domínio** | o subdomínio gerado (ex.: `apps-youtubeplaylist....easypanel.host`) |
+
+Variáveis de ambiente opcionais:
+
+```env
+DEFAULT_PLAYLIST_ID=PLxxxx
+DATABASE_URL=sqlite:///./data/youtubeplaylist.db
+CORS_ORIGINS=*
+```
+
+Se aparecer **"Service is not reachable"**, confira nos logs do container se o uvicorn subiu e se a **porta do painel** bate com a variável `PORT` (padrão `8080`). Depois de alterar o repositório, faça **redeploy/rebuild** no Easypanel.
+
 ### Só com Docker (sem compose)
 
 ```bash

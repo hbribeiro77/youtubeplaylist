@@ -28,8 +28,8 @@ def create_app() -> FastAPI:
 
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=settings.cors_origin_list,
-        allow_credentials=True,
+        allow_origins=["*"] if settings.cors_origins.strip() == "*" else settings.cors_origin_list,
+        allow_credentials=False if settings.cors_origins.strip() == "*" else True,
         allow_methods=["*"],
         allow_headers=["*"],
     )

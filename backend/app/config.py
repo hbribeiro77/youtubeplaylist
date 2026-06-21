@@ -15,7 +15,7 @@ class Settings(BaseSettings):
     default_playlist_id: str = ""
     host: str = "0.0.0.0"
     port: int = 8080
-    cors_origins: str = "http://localhost:8080,http://127.0.0.1:8080"
+    cors_origins: str = "*"
 
     @property
     def cors_origin_list(self) -> list[str]:
