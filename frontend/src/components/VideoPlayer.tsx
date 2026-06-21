@@ -8,6 +8,7 @@ import {
   type ReactNode,
 } from 'react'
 import { isValidYouTubeVideoId, normalizeYouTubeVideoId } from '../utils/youtubeVideoId'
+import { hasSegmentReachedEnd } from '../utils/videoSegmentPlayback'
 
 declare global {
   interface Window {
@@ -84,11 +85,13 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
   const pendingVideoRef = useRef<string | null>(normalizeYouTubeVideoId(videoId))
   const pendingStartRef = useRef<number | null>(startAtSeconds)
   const hideControlsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const segmentTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const segmentWatchRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const segmentActiveRef = useRef(false)
   const segmentLoopRef = useRef(false)
   const segmentOnEndRef = useRef<(() => void) | null>(null)
   const segmentStartRef = useRef(0)
   const segmentDurationRef = useRef(0)
+  const handleSegmentEndRef = useRef<() => void>(() => {})
   const momentLoopStartRef = useRef<number | null>(null)
   const [playerError, setPlayerError] = useState<string | null>(null)
   const [mountKey, setMountKey] = useState(0)
@@ -103,10 +106,10 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
     }
   }, [])
 
-  const clearSegmentTimer = useCallback(() => {
-    if (segmentTimerRef.current) {
-      clearTimeout(segmentTimerRef.current)
-      segmentTimerRef.current = null
+  const clearSegmentWatch = useCallback(() => {
+    if (segmentWatchRef.current) {
+      clearInterval(segmentWatchRef.current)
+      segmentWatchRef.current = null
     }
   }, [])
 
@@ -145,36 +148,62 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
     })
   }, [clearHideControlsTimer, isPlaying, scheduleHideControls])
 
+  const finishSegmentPlayback = useCallback(() => {
+    segmentActiveRef.current = false
+    playerRef.current?.pauseVideo()
+    setIsPlaying(false)
+    setControlsVisible(true)
+
+    const onEnd = segmentOnEndRef.current
+    segmentOnEndRef.current = null
+    onEnd?.()
+  }, [])
+
   const runSegmentPlayback = useCallback(() => {
     if (!playerRef.current || !readyRef.current) return
 
-    playerRef.current.seekTo(segmentStartRef.current, true)
+    const startSeconds = segmentStartRef.current
+
+    segmentActiveRef.current = true
+    playerRef.current.seekTo(startSeconds, true)
     playerRef.current.playVideo()
     setControlsVisible(true)
 
-    clearSegmentTimer()
-    segmentTimerRef.current = setTimeout(() => {
-      if (segmentLoopRef.current) {
-        runSegmentPlayback()
-        return
+    clearSegmentWatch()
+    segmentWatchRef.current = setInterval(() => {
+      if (!playerRef.current || !readyRef.current || !segmentActiveRef.current) return
+
+      const current = playerRef.current.getCurrentTime?.()
+      if (typeof current !== 'number' || !Number.isFinite(current)) return
+
+      if (hasSegmentReachedEnd(current, startSeconds, segmentDurationRef.current)) {
+        handleSegmentEndRef.current()
       }
+    }, 100)
+  }, [clearSegmentWatch])
 
-      playerRef.current?.pauseVideo()
-      setIsPlaying(false)
-      setControlsVisible(true)
+  const handleSegmentEnd = useCallback(() => {
+    clearSegmentWatch()
 
-      const onEnd = segmentOnEndRef.current
-      segmentOnEndRef.current = null
-      onEnd?.()
-    }, segmentDurationRef.current * 1000)
-  }, [clearSegmentTimer])
+    if (segmentLoopRef.current) {
+      runSegmentPlayback()
+      return
+    }
+
+    finishSegmentPlayback()
+  }, [clearSegmentWatch, finishSegmentPlayback, runSegmentPlayback])
+
+  useEffect(() => {
+    handleSegmentEndRef.current = handleSegmentEnd
+  }, [handleSegmentEnd])
 
   const stopSegmentPlayback = useCallback(() => {
-    clearSegmentTimer()
+    clearSegmentWatch()
+    segmentActiveRef.current = false
     segmentLoopRef.current = false
     segmentOnEndRef.current = null
     clearMomentLoop()
-  }, [clearMomentLoop, clearSegmentTimer])
+  }, [clearMomentLoop, clearSegmentWatch])
 
   useImperativeHandle(ref, () => ({
     getCurrentTime: () => {
@@ -252,7 +281,8 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
     const current = playerRef.current.getVideoData()?.video_id
     if (current === id && startSeconds == null) return
 
-    clearSegmentTimer()
+    clearSegmentWatch()
+    segmentActiveRef.current = false
     segmentLoopRef.current = false
     segmentOnEndRef.current = null
     clearMomentLoop()
@@ -322,6 +352,11 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
               setIsPlaying(false)
               clearHideControlsTimer()
               setControlsVisible(true)
+
+              if (segmentActiveRef.current) {
+                handleSegmentEndRef.current()
+                return
+              }
 
               if (momentLoopStartRef.current != null) {
                 event.target.seekTo(momentLoopStartRef.current, true)
