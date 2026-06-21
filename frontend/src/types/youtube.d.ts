@@ -20,9 +20,23 @@ declare namespace YT {
     }
   }
 
+  interface VideoLoadOptions {
+    videoId: string
+    startSeconds?: number
+    endSeconds?: number
+  }
+
   class Player {
     constructor(element: HTMLElement | string, options: PlayerOptions)
     loadVideoById(videoId: string): void
+    loadVideoById(options: VideoLoadOptions): void
+    cueVideoById(videoId: string): void
+    cueVideoById(options: VideoLoadOptions): void
+    playVideo(): void
+    pauseVideo(): void
+    seekTo(seconds: number, allowSeekAhead: boolean): void
+    getCurrentTime(): number
+    getDuration(): number
     setPlaybackRate(rate: number): void
     getVideoData(): { video_id: string }
     destroy(): void
