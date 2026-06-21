@@ -42,6 +42,7 @@ class VideoReplayUpdate(BaseModel):
     replay_enabled: bool | None = None
     replay_duration_seconds: int | None = None
     loop_enabled: bool | None = None
+    loop_count: int | None = None
 
 
 class VideoResponse(BaseModel):
@@ -58,6 +59,7 @@ class VideoResponse(BaseModel):
     replay_enabled: bool = False
     replay_duration_seconds: int = 5
     loop_enabled: bool = False
+    loop_count: int = 0
     moments: list[VideoMomentResponse] = []
 
     model_config = {"from_attributes": True}

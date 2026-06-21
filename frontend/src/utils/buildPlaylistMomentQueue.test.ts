@@ -17,6 +17,7 @@ function makeVideo(id: number, position: number, moments: Video['moments']): Vid
     replay_enabled: false,
     replay_duration_seconds: 5,
     loop_enabled: false,
+    loop_count: 0,
     moments,
   }
 }

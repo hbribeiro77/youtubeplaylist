@@ -25,7 +25,7 @@ interface PendingSegment {
   videoId: string
   start: number
   duration: number
-  loop: boolean
+  loopRepeats: number
   onEnd?: () => void
 }
 
@@ -79,7 +79,7 @@ export function PlaylistView({ playlist, onBack }: PlaylistViewProps) {
 
     const timer = window.setTimeout(() => {
       playerRef.current?.playSegment(pending.start, pending.duration, {
-        loop: pending.loop,
+        loopRepeats: pending.loopRepeats,
         onEnd: pending.onEnd,
       })
       pendingSegmentRef.current = null
@@ -119,12 +119,13 @@ export function PlaylistView({ playlist, onBack }: PlaylistViewProps) {
       playerRef.current?.cancelSegmentPlayback()
 
       const useSegment = video.replay_enabled || options?.forceSegment
-      const loop = !options?.ignoreLoop && video.loop_enabled && video.replay_enabled
+      const loopRepeats =
+        !options?.ignoreLoop && video.replay_enabled ? video.loop_count : 0
 
       if (useSegment) {
         const duration = video.replay_duration_seconds
         const segmentOptions = {
-          loop,
+          loopRepeats,
           onEnd: options?.onEnd,
         }
 
@@ -137,7 +138,7 @@ export function PlaylistView({ playlist, onBack }: PlaylistViewProps) {
           videoId: id,
           start: moment.position_seconds,
           duration,
-          loop,
+          loopRepeats,
           onEnd: options?.onEnd,
         }
         setStartAtSeconds(moment.position_seconds)
@@ -147,13 +148,14 @@ export function PlaylistView({ playlist, onBack }: PlaylistViewProps) {
 
       if (id === activeVideoId) {
         playerRef.current?.seekTo(moment.position_seconds, {
-          loopFromMoment: !options?.ignoreLoop && video.loop_enabled,
+          loopFromMoment:
+            !options?.ignoreLoop && !video.replay_enabled && video.loop_count === -1,
         })
         return
       }
 
       pendingSegmentRef.current = null
-      if (!options?.ignoreLoop && video.loop_enabled) {
+      if (!options?.ignoreLoop && !video.replay_enabled && video.loop_count === -1) {
         pendingMomentLoopRef.current = moment.position_seconds
       }
       setStartAtSeconds(moment.position_seconds)
@@ -227,8 +229,8 @@ export function PlaylistView({ playlist, onBack }: PlaylistViewProps) {
     await queryClient.invalidateQueries({ queryKey: ['videos', playlist.id] })
   }
 
-  const handleLoopChange = async (video: Video, loopEnabled: boolean) => {
-    await api.updateVideoReplay(video.id, { loop_enabled: loopEnabled })
+  const handleLoopCountChange = async (video: Video, loopCount: number) => {
+    await api.updateVideoReplay(video.id, { loop_count: loopCount })
     await queryClient.invalidateQueries({ queryKey: ['videos', playlist.id] })
   }
 
@@ -313,7 +315,7 @@ export function PlaylistView({ playlist, onBack }: PlaylistViewProps) {
                     video={activeVideo}
                     variant="player"
                     onReplayChange={handleReplayChange}
-                    onLoopChange={handleLoopChange}
+                    onLoopCountChange={handleLoopCountChange}
                     onReplayDurationChange={handleReplayDurationChange}
                   />
                 )}
@@ -398,7 +400,7 @@ export function PlaylistView({ playlist, onBack }: PlaylistViewProps) {
                   onPlayMoment={handlePlayMoment}
                   onDeleteMoment={handleDeleteMoment}
                   onReplayChange={handleReplayChange}
-                  onLoopChange={handleLoopChange}
+                  onLoopCountChange={handleLoopCountChange}
                   onReplayDurationChange={handleReplayDurationChange}
                 />
               </div>

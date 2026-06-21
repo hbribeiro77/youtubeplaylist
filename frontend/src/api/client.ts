@@ -23,10 +23,21 @@ export interface Video {
   replay_enabled: boolean
   replay_duration_seconds: number
   loop_enabled: boolean
+  loop_count: number
   moments: VideoMoment[]
 }
 
-export const REPLAY_DURATION_OPTIONS = [5, 8, 10] as const
+export const REPLAY_DURATION_OPTIONS = [5, 10, 15, 20, 25, 30] as const
+
+export const LOOP_COUNT_OPTIONS = [
+  { value: 0, label: 'Não' },
+  { value: 1, label: '1' },
+  { value: 2, label: '2' },
+  { value: 3, label: '3' },
+  { value: 4, label: '4' },
+  { value: 5, label: '5' },
+  { value: -1, label: '∞' },
+] as const
 
 export interface VideoMoment {
   id: number
@@ -78,6 +89,7 @@ export const api = {
       replay_enabled?: boolean
       replay_duration_seconds?: number
       loop_enabled?: boolean
+      loop_count?: number
     },
   ) =>
     request<Video>(`/videos/${videoId}/replay`, {

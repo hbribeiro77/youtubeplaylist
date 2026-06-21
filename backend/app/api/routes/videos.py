@@ -11,7 +11,13 @@ from app.schemas.playlist import (
     VideoResponse,
     parse_tags,
 )
-from app.db.migrations import DEFAULT_REPLAY_DURATION_SECONDS, REPLAY_DURATION_OPTIONS
+from app.db.migrations import (
+    DEFAULT_LOOP_COUNT,
+    DEFAULT_REPLAY_DURATION_SECONDS,
+    INFINITE_LOOP_COUNT,
+    LOOP_COUNT_OPTIONS,
+    REPLAY_DURATION_OPTIONS,
+)
 from app.services.search_service import search_videos
 from app.services.video_moment_service import create_moment, delete_moment, get_video_or_none
 
@@ -42,6 +48,7 @@ def _to_video_response(video: Video) -> VideoResponse:
         replay_enabled=video.replay_enabled,
         replay_duration_seconds=video.replay_duration_seconds,
         loop_enabled=video.loop_enabled,
+        loop_count=video.loop_count,
         moments=[_moment_to_response(moment) for moment in video.moments],
     )
 
@@ -146,6 +153,19 @@ def update_video_replay_settings(
 
     if payload.loop_enabled is not None:
         video.loop_enabled = payload.loop_enabled
+        if payload.loop_enabled:
+            video.loop_count = INFINITE_LOOP_COUNT
+        elif payload.loop_count is None:
+            video.loop_count = DEFAULT_LOOP_COUNT
+
+    if payload.loop_count is not None:
+        if payload.loop_count not in LOOP_COUNT_OPTIONS:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Repetições de loop inválidas. Use: {', '.join(map(str, LOOP_COUNT_OPTIONS))}",
+            )
+        video.loop_count = payload.loop_count
+        video.loop_enabled = payload.loop_count != DEFAULT_LOOP_COUNT
 
     if payload.replay_duration_seconds is not None:
         if payload.replay_duration_seconds not in REPLAY_DURATION_OPTIONS:
@@ -157,6 +177,9 @@ def update_video_replay_settings(
 
     if video.replay_duration_seconds not in REPLAY_DURATION_OPTIONS:
         video.replay_duration_seconds = DEFAULT_REPLAY_DURATION_SECONDS
+
+    if video.loop_count not in LOOP_COUNT_OPTIONS:
+        video.loop_count = DEFAULT_LOOP_COUNT
 
     db.commit()
     db.refresh(video)

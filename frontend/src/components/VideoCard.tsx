@@ -11,7 +11,7 @@ interface VideoCardProps {
   onPlayMoment: (video: Video, moment: VideoMoment) => void
   onDeleteMoment?: (video: Video, moment: VideoMoment) => void
   onReplayChange: (video: Video, replayEnabled: boolean) => void
-  onLoopChange: (video: Video, loopEnabled: boolean) => void
+  onLoopCountChange: (video: Video, loopCount: number) => void
   onReplayDurationChange: (video: Video, durationSeconds: number) => void
 }
 
@@ -23,7 +23,7 @@ export function VideoCard({
   onPlayMoment,
   onDeleteMoment,
   onReplayChange,
-  onLoopChange,
+  onLoopCountChange,
   onReplayDurationChange,
 }: VideoCardProps) {
   const titleHtml = searchQuery
@@ -107,7 +107,7 @@ export function VideoCard({
           variant="card"
           isActive={isActive}
           onReplayChange={onReplayChange}
-          onLoopChange={onLoopChange}
+          onLoopCountChange={onLoopCountChange}
           onReplayDurationChange={onReplayDurationChange}
         />
       </div>

@@ -1,12 +1,12 @@
 import type { Video } from '../api/client'
-import { REPLAY_DURATION_OPTIONS } from '../api/client'
+import { LOOP_COUNT_OPTIONS, REPLAY_DURATION_OPTIONS } from '../api/client'
 
 interface VideoPlaybackControlsProps {
   video: Video
   variant: 'card' | 'player'
   isActive?: boolean
   onReplayChange: (video: Video, replayEnabled: boolean) => void
-  onLoopChange: (video: Video, loopEnabled: boolean) => void
+  onLoopCountChange: (video: Video, loopCount: number) => void
   onReplayDurationChange: (video: Video, durationSeconds: number) => void
 }
 
@@ -15,7 +15,7 @@ export function VideoPlaybackControls({
   variant,
   isActive = false,
   onReplayChange,
-  onLoopChange,
+  onLoopCountChange,
   onReplayDurationChange,
 }: VideoPlaybackControlsProps) {
   const isCard = variant === 'card'
@@ -38,7 +38,7 @@ export function VideoPlaybackControls({
 
   return (
     <div
-      className={`flex flex-wrap items-center gap-3 ${isCard ? '' : ''}`}
+      className="flex flex-wrap items-center gap-3"
       data-testid="video-playback-controls"
       onClick={(event) => event.stopPropagation()}
     >
@@ -53,33 +53,40 @@ export function VideoPlaybackControls({
         Replay
       </label>
 
-      <label className={labelClass}>
-        <input
-          type="checkbox"
-          data-testid="loop-checkbox"
-          checked={video.loop_enabled}
-          onChange={(event) => onLoopChange(video, event.target.checked)}
-          className={checkboxClass}
-        />
-        Loop
-      </label>
-
       {video.replay_enabled && (
-        <label className={labelClass}>
-          <span>Duração</span>
-          <select
-            data-testid="replay-duration-select"
-            value={video.replay_duration_seconds}
-            onChange={(event) => onReplayDurationChange(video, Number(event.target.value))}
-            className={selectClass}
-          >
-            {REPLAY_DURATION_OPTIONS.map((seconds) => (
-              <option key={seconds} value={seconds}>
-                {seconds}s
-              </option>
-            ))}
-          </select>
-        </label>
+        <>
+          <label className={labelClass}>
+            <span>Duração</span>
+            <select
+              data-testid="replay-duration-select"
+              value={video.replay_duration_seconds}
+              onChange={(event) => onReplayDurationChange(video, Number(event.target.value))}
+              className={selectClass}
+            >
+              {REPLAY_DURATION_OPTIONS.map((seconds) => (
+                <option key={seconds} value={seconds}>
+                  {seconds}s
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className={labelClass}>
+            <span>Repetições</span>
+            <select
+              data-testid="loop-count-select"
+              value={video.loop_count}
+              onChange={(event) => onLoopCountChange(video, Number(event.target.value))}
+              className={selectClass}
+            >
+              {LOOP_COUNT_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
+        </>
       )}
     </div>
   )

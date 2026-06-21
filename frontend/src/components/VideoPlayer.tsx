@@ -23,7 +23,7 @@ export interface VideoPlayerHandle {
   playSegment: (
     startSeconds: number,
     durationSeconds: number,
-    options?: { loop?: boolean; onEnd?: () => void },
+    options?: { loopRepeats?: number; onEnd?: () => void },
   ) => void
   cancelSegmentPlayback: () => void
   stopMomentSequence: () => void
@@ -41,7 +41,6 @@ interface VideoPlayerProps {
 }
 
 let apiReadyPromise: Promise<void> | null = null
-const CONTROLS_AUTO_HIDE_MS = 3000
 
 function loadYouTubeApi(): Promise<void> {
   if (window.YT?.Player) return Promise.resolve()
@@ -84,10 +83,9 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
   const readyRef = useRef(false)
   const pendingVideoRef = useRef<string | null>(normalizeYouTubeVideoId(videoId))
   const pendingStartRef = useRef<number | null>(startAtSeconds)
-  const hideControlsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const segmentWatchRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const segmentActiveRef = useRef(false)
-  const segmentLoopRef = useRef(false)
+  const segmentLoopsRemainingRef = useRef(0)
   const segmentOnEndRef = useRef<(() => void) | null>(null)
   const segmentStartRef = useRef(0)
   const segmentDurationRef = useRef(0)
@@ -96,15 +94,6 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
   const [playerError, setPlayerError] = useState<string | null>(null)
   const [mountKey, setMountKey] = useState(0)
   const [isFullscreen, setIsFullscreen] = useState(false)
-  const [controlsVisible, setControlsVisible] = useState(true)
-  const [isPlaying, setIsPlaying] = useState(false)
-
-  const clearHideControlsTimer = useCallback(() => {
-    if (hideControlsTimerRef.current) {
-      clearTimeout(hideControlsTimerRef.current)
-      hideControlsTimerRef.current = null
-    }
-  }, [])
 
   const clearSegmentWatch = useCallback(() => {
     if (segmentWatchRef.current) {
@@ -117,42 +106,9 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
     momentLoopStartRef.current = null
   }, [])
 
-  const scheduleHideControls = useCallback(() => {
-    clearHideControlsTimer()
-    hideControlsTimerRef.current = setTimeout(() => {
-      setControlsVisible(false)
-    }, CONTROLS_AUTO_HIDE_MS)
-  }, [clearHideControlsTimer])
-
-  const showControls = useCallback(
-    (autoHide = true) => {
-      setControlsVisible(true)
-      if (autoHide && isPlaying) {
-        scheduleHideControls()
-      } else {
-        clearHideControlsTimer()
-      }
-    },
-    [clearHideControlsTimer, isPlaying, scheduleHideControls],
-  )
-
-  const toggleControls = useCallback(() => {
-    setControlsVisible((visible) => {
-      const next = !visible
-      if (next) {
-        if (isPlaying) scheduleHideControls()
-      } else {
-        clearHideControlsTimer()
-      }
-      return next
-    })
-  }, [clearHideControlsTimer, isPlaying, scheduleHideControls])
-
   const finishSegmentPlayback = useCallback(() => {
     segmentActiveRef.current = false
     playerRef.current?.pauseVideo()
-    setIsPlaying(false)
-    setControlsVisible(true)
 
     const onEnd = segmentOnEndRef.current
     segmentOnEndRef.current = null
@@ -167,7 +123,6 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
     segmentActiveRef.current = true
     playerRef.current.seekTo(startSeconds, true)
     playerRef.current.playVideo()
-    setControlsVisible(true)
 
     clearSegmentWatch()
     segmentWatchRef.current = setInterval(() => {
@@ -185,7 +140,14 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
   const handleSegmentEnd = useCallback(() => {
     clearSegmentWatch()
 
-    if (segmentLoopRef.current) {
+    const remaining = segmentLoopsRemainingRef.current
+    if (remaining === -1) {
+      runSegmentPlayback()
+      return
+    }
+
+    if (remaining > 0) {
+      segmentLoopsRemainingRef.current = remaining - 1
       runSegmentPlayback()
       return
     }
@@ -200,7 +162,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
   const stopSegmentPlayback = useCallback(() => {
     clearSegmentWatch()
     segmentActiveRef.current = false
-    segmentLoopRef.current = false
+    segmentLoopsRemainingRef.current = 0
     segmentOnEndRef.current = null
     clearMomentLoop()
   }, [clearMomentLoop, clearSegmentWatch])
@@ -220,19 +182,18 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
       if (!playerRef.current || !readyRef.current) return
       playerRef.current.seekTo(seconds, true)
       playerRef.current.playVideo()
-      showControls(true)
     },
     playSegment: (
       startSeconds: number,
       durationSeconds: number,
-      options?: { loop?: boolean; onEnd?: () => void },
+      options?: { loopRepeats?: number; onEnd?: () => void },
     ) => {
       stopSegmentPlayback()
       if (!playerRef.current || !readyRef.current) return
 
       segmentStartRef.current = startSeconds
       segmentDurationRef.current = durationSeconds
-      segmentLoopRef.current = options?.loop ?? false
+      segmentLoopsRemainingRef.current = options?.loopRepeats ?? 0
       segmentOnEndRef.current = options?.onEnd ?? null
       runSegmentPlayback()
     },
@@ -255,10 +216,9 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
 
   useEffect(() => {
     return () => {
-      clearHideControlsTimer()
       stopSegmentPlayback()
     }
-  }, [clearHideControlsTimer, stopSegmentPlayback])
+  }, [stopSegmentPlayback])
 
   useEffect(() => {
     if (!playerRef.current || !readyRef.current) return
@@ -283,7 +243,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
 
     clearSegmentWatch()
     segmentActiveRef.current = false
-    segmentLoopRef.current = false
+    segmentLoopsRemainingRef.current = 0
     segmentOnEndRef.current = null
     clearMomentLoop()
 
@@ -332,27 +292,12 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
             }
           },
           onStateChange: (event) => {
-            const playing = event.data === window.YT.PlayerState.PLAYING
-            const paused = event.data === window.YT.PlayerState.PAUSED
-
-            if (playing) {
-              setIsPlaying(true)
+            if (event.data === window.YT.PlayerState.PLAYING) {
               const current = event.target.getVideoData().video_id
               if (isValidYouTubeVideoId(current)) onVideoChange?.(current)
-              scheduleHideControls()
-            }
-
-            if (paused) {
-              setIsPlaying(false)
-              clearHideControlsTimer()
-              setControlsVisible(true)
             }
 
             if (event.data === window.YT.PlayerState.ENDED) {
-              setIsPlaying(false)
-              clearHideControlsTimer()
-              setControlsVisible(true)
-
               if (segmentActiveRef.current) {
                 handleSegmentEndRef.current()
                 return
@@ -387,7 +332,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
         containerRef.current.innerHTML = ''
       }
     }
-  }, [mountKey, onVideoChange, clearHideControlsTimer, scheduleHideControls])
+  }, [mountKey, onVideoChange, playbackRate])
 
   useEffect(() => {
     loadVideo(videoId, startAtSeconds)
@@ -396,8 +341,6 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
   const handleFullscreen = async () => {
     const shell = shellRef.current
     if (!shell) return
-
-    showControls(false)
 
     try {
       if (document.fullscreenElement === shell) {
@@ -429,16 +372,6 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
         className={`relative w-full bg-black ${
           isFullscreen ? 'flex min-h-0 flex-1 flex-col' : 'aspect-video'
         }`}
-        onClick={toggleControls}
-        onKeyDown={(event) => {
-          if (event.key === 'Enter' || event.key === ' ') {
-            event.preventDefault()
-            toggleControls()
-          }
-        }}
-        role="button"
-        tabIndex={0}
-        aria-label={controlsVisible ? 'Ocultar controles' : 'Mostrar controles'}
       >
         <div
           ref={containerRef}
@@ -452,33 +385,15 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
             <button
               type="button"
               className="rounded-lg bg-yellow-400 px-4 py-2 text-base font-medium text-slate-900"
-              onClick={(event) => {
-                event.stopPropagation()
-                handleRetry()
-              }}
+              onClick={handleRetry}
             >
               Tentar novamente
             </button>
           </div>
         )}
-
-        {!controlsVisible && !playerError && (
-          <div className="pointer-events-none absolute inset-0 flex items-end justify-center pb-4">
-            <span className="rounded-full bg-black/70 px-3 py-1 text-xs text-slate-200">
-              Toque para mostrar controles
-            </span>
-          </div>
-        )}
       </div>
 
-      <div
-        className={`overflow-hidden bg-black transition-all duration-300 ease-out ${
-          controlsVisible ? 'max-h-80 opacity-100' : 'max-h-0 opacity-0'
-        }`}
-        data-testid="video-player-controls"
-        onClick={(event) => event.stopPropagation()}
-        onKeyDown={(event) => event.stopPropagation()}
-      >
+      <div className="bg-black" data-testid="video-player-controls">
         <div className="border-t border-slate-800 px-4 py-3">
           <div className="flex flex-wrap items-center gap-3">
             {onMarkMoment && (
@@ -504,9 +419,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
           </div>
 
           {toolbarExtra && (
-            <div className="mt-3 border-t border-slate-800 pt-3">
-              {toolbarExtra}
-            </div>
+            <div className="mt-3 border-t border-slate-800 pt-3">{toolbarExtra}</div>
           )}
         </div>
       </div>

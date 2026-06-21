@@ -18,6 +18,7 @@ const sampleVideo: Video = {
   replay_enabled: false,
   replay_duration_seconds: 5,
   loop_enabled: false,
+  loop_count: 0,
 }
 
 describe('VideoCard', () => {
@@ -29,7 +30,7 @@ describe('VideoCard', () => {
         onSelect={vi.fn()}
         onPlayMoment={vi.fn()}
         onReplayChange={vi.fn()}
-        onLoopChange={vi.fn()}
+        onLoopCountChange={vi.fn()}
         onReplayDurationChange={vi.fn()}
       />,
     )
@@ -47,41 +48,27 @@ describe('VideoCard', () => {
         onSelect={vi.fn()}
         onPlayMoment={vi.fn()}
         onReplayChange={vi.fn()}
-        onLoopChange={vi.fn()}
+        onLoopCountChange={vi.fn()}
         onReplayDurationChange={vi.fn()}
       />,
     )
     expect(screen.getByTestId('video-card-active')).toHaveClass('ring-yellow-400')
   })
 
-  it('shows replay duration selector when replay is enabled', () => {
+  it('shows replay duration and loop selectors when replay is enabled', () => {
     render(
       <VideoCard
-        video={{ ...sampleVideo, replay_enabled: true, replay_duration_seconds: 8 }}
+        video={{ ...sampleVideo, replay_enabled: true, replay_duration_seconds: 15, loop_count: 3 }}
         isActive={false}
         onSelect={vi.fn()}
         onPlayMoment={vi.fn()}
         onReplayChange={vi.fn()}
-        onLoopChange={vi.fn()}
+        onLoopCountChange={vi.fn()}
         onReplayDurationChange={vi.fn()}
       />,
     )
     expect(screen.getByTestId('replay-checkbox')).toBeChecked()
-    expect(screen.getByTestId('replay-duration-select')).toHaveValue('8')
-  })
-
-  it('shows loop checkbox when enabled', () => {
-    render(
-      <VideoCard
-        video={{ ...sampleVideo, loop_enabled: true }}
-        isActive={false}
-        onSelect={vi.fn()}
-        onPlayMoment={vi.fn()}
-        onReplayChange={vi.fn()}
-        onLoopChange={vi.fn()}
-        onReplayDurationChange={vi.fn()}
-      />,
-    )
-    expect(screen.getByTestId('loop-checkbox')).toBeChecked()
+    expect(screen.getByTestId('replay-duration-select')).toHaveValue('15')
+    expect(screen.getByTestId('loop-count-select')).toHaveValue('3')
   })
 })
