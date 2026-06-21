@@ -2,7 +2,7 @@ import json
 from unittest.mock import MagicMock
 
 from app.services.sync_service import SyncService
-from app.services.youtube_client import YtPlaylistMetadata, YtVideoMetadata
+from app.services.youtube_models import YtPlaylistMetadata, YtVideoMetadata
 
 
 def test_sync_playlist_persists_videos(db_session):

@@ -1,10 +1,12 @@
-from dataclasses import dataclass
 import logging
 import re
 from typing import Any
 
 import httpx
 import yt_dlp
+
+from app.services.innertube_playlist_client import InnertubePlaylistClient
+from app.services.youtube_models import YtPlaylistMetadata, YtVideoMetadata
 
 logger = logging.getLogger(__name__)
 
@@ -20,23 +22,6 @@ PIPED_API_INSTANCES = [
 
 PLAYLIST_PAGE_SIZE = 100
 MAX_PLAYLIST_VIDEOS = 10_000
-
-
-@dataclass
-class YtVideoMetadata:
-    youtube_video_id: str
-    title: str
-    description: str
-    duration_seconds: int
-    thumbnail_url: str
-    tags: list[str]
-
-
-@dataclass
-class YtPlaylistMetadata:
-    title: str
-    videos: list[YtVideoMetadata]
-    playlist_count: int | None = None
 
 
 def normalize_video_id(entry: dict[str, Any]) -> str | None:
@@ -63,8 +48,12 @@ def playlist_fetch_looks_truncated(metadata: YtPlaylistMetadata) -> bool:
     """Detecta quando o YouTube provavelmente cortou a lista em ~100 itens."""
     got = len(metadata.videos)
     expected = metadata.playlist_count
-    if expected is not None and got < expected:
-        return True
+    if expected is not None:
+        if got >= expected:
+            return False
+        if got > PLAYLIST_PAGE_SIZE + 1:
+            return False
+        return got < expected
     return got in (PLAYLIST_PAGE_SIZE, PLAYLIST_PAGE_SIZE + 1)
 
 
@@ -109,14 +98,34 @@ def merge_video_lists(chunks: list[list[YtVideoMetadata]]) -> list[YtVideoMetada
 
 
 class YouTubeClient:
-    """Busca metadados de playlists via yt-dlp (modo rápido) com fallback Piped."""
+    """Busca metadados de playlists via Innertube, yt-dlp e Piped."""
 
-    def __init__(self, piped_instances: list[str] | None = None):
+    def __init__(
+        self,
+        piped_instances: list[str] | None = None,
+        innertube_client: InnertubePlaylistClient | None = None,
+    ):
         self.piped_instances = piped_instances or PIPED_API_INSTANCES
+        self.innertube = innertube_client or InnertubePlaylistClient()
 
     def fetch_playlist(self, playlist_id: str) -> YtPlaylistMetadata:
         errors: list[str] = []
         candidates: list[YtPlaylistMetadata] = []
+
+        try:
+            innertube_meta = self.innertube.fetch_playlist(playlist_id)
+            if innertube_meta.videos:
+                candidates.append(innertube_meta)
+                if not playlist_fetch_looks_truncated(innertube_meta):
+                    return innertube_meta
+                errors.append(
+                    f"Innertube retornou apenas {len(innertube_meta.videos)} vídeos (possível truncamento)"
+                )
+            else:
+                errors.append("Innertube não retornou vídeos")
+        except Exception as exc:
+            logger.exception("Falha Innertube para playlist %s", playlist_id)
+            errors.append(f"Innertube: {exc}")
 
         try:
             ytdlp_meta = self._fetch_with_ytdlp_flat(playlist_id)

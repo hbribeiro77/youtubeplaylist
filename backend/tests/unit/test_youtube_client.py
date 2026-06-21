@@ -3,8 +3,6 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from app.services.youtube_client import (
-    YtPlaylistMetadata,
-    YtVideoMetadata,
     YouTubeClient,
     materialize_ytdlp_entries,
     merge_video_lists,
@@ -12,6 +10,7 @@ from app.services.youtube_client import (
     parse_ytdlp_entries,
     playlist_fetch_looks_truncated,
 )
+from app.services.youtube_models import YtPlaylistMetadata, YtVideoMetadata
 
 
 def test_normalize_video_id_from_flat_entry():
@@ -59,6 +58,7 @@ def test_materialize_ytdlp_entries_consumes_generator():
     [
         (900, 101, True),
         (900, 900, False),
+        (820, 736, False),
         (50, 50, False),
         (None, 100, True),
         (None, 101, True),

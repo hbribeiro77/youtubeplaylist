@@ -9,6 +9,10 @@ from app.db.session import get_db, init_db, reset_engine
 from app.main import create_app
 
 
+def pytest_configure(config):
+    config.addinivalue_line("markers", "live: testes que acessam serviços externos reais")
+
+
 @pytest.fixture(autouse=True)
 def test_env(monkeypatch, tmp_path):
     db_path = tmp_path / "test.db"
