@@ -43,6 +43,8 @@ RUN mkdir -p /app/backend/data \
     && useradd --create-home --shell /usr/sbin/nologin appuser \
     && chown -R appuser:appuser /app
 
+VOLUME ["/app/backend/data"]
+
 USER appuser
 
 EXPOSE 8080

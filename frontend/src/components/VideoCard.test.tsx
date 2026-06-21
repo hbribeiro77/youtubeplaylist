@@ -17,10 +17,11 @@ const sampleVideo: Video = {
 }
 
 describe('VideoCard', () => {
-  it('renders thumbnail, title and duration', () => {
+  it('renders thumbnail, title, duration and playlist number', () => {
     render(<VideoCard video={sampleVideo} isActive={false} onSelect={vi.fn()} />)
     expect(screen.getByText('Docker basics')).toBeInTheDocument()
     expect(screen.getByText('3:32')).toBeInTheDocument()
+    expect(screen.getByLabelText('Vídeo 1')).toHaveTextContent('1')
     expect(screen.getByAltText('Docker basics')).toBeInTheDocument()
   })
 

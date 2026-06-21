@@ -103,6 +103,22 @@ No painel do app, configure:
 | **Health check** | HTTP `GET /health` |
 | **Domínio** | o subdomínio gerado (ex.: `apps-youtubeplaylist....easypanel.host`) |
 
+#### Persistir o banco entre deploys (importante)
+
+Sem volume, cada redeploy recria o container e **apaga o SQLite** (playlists sincronizadas, transcrições etc.).
+
+1. Abra o app no Easypanel → aba **Storage** (ou **Mounts**)
+2. Adicione um **Volume Mount**:
+   - **Name:** `app-data`
+   - **Mount path:** `/app/backend/data`
+3. Salve e faça **redeploy**
+
+O arquivo do banco fica em `/app/backend/data/youtubeplaylist.db` dentro do container. No servidor, os arquivos costumam ficar em:
+
+```text
+/etc/easypanel/projects/[projeto]/[servico]/volumes/app-data/
+```
+
 Variáveis de ambiente opcionais:
 
 ```env

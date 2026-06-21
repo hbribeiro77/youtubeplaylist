@@ -37,3 +37,13 @@ git push -u origin main
 ```
 
 App em http://localhost:8080
+
+## Persistência do banco (Easypanel)
+
+Cada redeploy sem volume **apaga** o SQLite. No Easypanel:
+
+1. App → **Storage** → **Add Volume**
+2. Name: `app-data` | Mount path: `/app/backend/data`
+3. Redeploy
+
+`DATABASE_URL` padrão: `sqlite:///./data/youtubeplaylist.db`

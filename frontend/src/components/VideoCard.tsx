@@ -12,6 +12,7 @@ export function VideoCard({ video, isActive, searchQuery = '', onSelect }: Video
   const titleHtml = searchQuery
     ? { __html: highlightText(video.title, searchQuery) }
     : undefined
+  const displayNumber = video.position + 1
 
   return (
     <button
@@ -24,6 +25,14 @@ export function VideoCard({ video, isActive, searchQuery = '', onSelect }: Video
           : 'bg-slate-900 text-slate-100 hover:bg-slate-800'
       }`}
     >
+      <span
+        className={`w-8 shrink-0 pt-1 text-right text-sm font-semibold tabular-nums ${
+          isActive ? 'text-yellow-700' : 'text-slate-500'
+        }`}
+        aria-label={`Vídeo ${displayNumber}`}
+      >
+        {displayNumber}
+      </span>
       <div className="relative shrink-0">
         <img
           src={video.thumbnail_url}
