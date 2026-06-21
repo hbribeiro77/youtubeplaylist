@@ -7,9 +7,11 @@ from app.schemas.playlist import (
     VideoDetailResponse,
     VideoMomentCreate,
     VideoMomentResponse,
+    VideoReplayUpdate,
     VideoResponse,
     parse_tags,
 )
+from app.db.migrations import DEFAULT_REPLAY_DURATION_SECONDS, REPLAY_DURATION_OPTIONS
 from app.services.search_service import search_videos
 from app.services.video_moment_service import create_moment, delete_moment, get_video_or_none
 
@@ -37,6 +39,8 @@ def _to_video_response(video: Video) -> VideoResponse:
         thumbnail_url=video.thumbnail_url,
         tags=parse_tags(video.tags_json),
         transcript_status=video.transcript_status.value,
+        replay_enabled=video.replay_enabled,
+        replay_duration_seconds=video.replay_duration_seconds,
         moments=[_moment_to_response(moment) for moment in video.moments],
     )
 
@@ -119,3 +123,37 @@ def remove_video_moment(
 
     if not delete_moment(db, video, moment_id):
         raise HTTPException(status_code=404, detail="Momento não encontrado")
+
+
+@router.patch("/videos/{video_id}/replay", response_model=VideoResponse)
+def update_video_replay_settings(
+    video_id: int,
+    payload: VideoReplayUpdate,
+    db: Session = Depends(get_db),
+) -> VideoResponse:
+    video = (
+        db.query(Video)
+        .options(joinedload(Video.moments))
+        .filter(Video.id == video_id)
+        .first()
+    )
+    if video is None:
+        raise HTTPException(status_code=404, detail="Vídeo não encontrado")
+
+    if payload.replay_enabled is not None:
+        video.replay_enabled = payload.replay_enabled
+
+    if payload.replay_duration_seconds is not None:
+        if payload.replay_duration_seconds not in REPLAY_DURATION_OPTIONS:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Duração de replay inválida. Use: {', '.join(map(str, REPLAY_DURATION_OPTIONS))}",
+            )
+        video.replay_duration_seconds = payload.replay_duration_seconds
+
+    if video.replay_duration_seconds not in REPLAY_DURATION_OPTIONS:
+        video.replay_duration_seconds = DEFAULT_REPLAY_DURATION_SECONDS
+
+    db.commit()
+    db.refresh(video)
+    return _to_video_response(video)

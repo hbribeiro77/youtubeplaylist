@@ -1,5 +1,6 @@
 import {
   forwardRef,
+  useCallback,
   useEffect,
   useImperativeHandle,
   useRef,
@@ -18,6 +19,8 @@ declare global {
 export interface VideoPlayerHandle {
   getCurrentTime: () => number
   seekTo: (seconds: number) => void
+  playSegment: (startSeconds: number, durationSeconds: number) => void
+  cancelSegmentPlayback: () => void
 }
 
 interface VideoPlayerProps {
@@ -31,6 +34,7 @@ interface VideoPlayerProps {
 }
 
 let apiReadyPromise: Promise<void> | null = null
+const CONTROLS_AUTO_HIDE_MS = 3000
 
 function loadYouTubeApi(): Promise<void> {
   if (window.YT?.Player) return Promise.resolve()
@@ -74,10 +78,59 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
   const readyRef = useRef(false)
   const pendingVideoRef = useRef<string | null>(normalizeYouTubeVideoId(videoId))
   const pendingStartRef = useRef<number | null>(startAtSeconds)
+  const hideControlsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const segmentTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [playbackRate, setPlaybackRate] = useState(1)
   const [playerError, setPlayerError] = useState<string | null>(null)
   const [mountKey, setMountKey] = useState(0)
   const [isFullscreen, setIsFullscreen] = useState(false)
+  const [controlsVisible, setControlsVisible] = useState(true)
+  const [isPlaying, setIsPlaying] = useState(false)
+
+  const clearHideControlsTimer = useCallback(() => {
+    if (hideControlsTimerRef.current) {
+      clearTimeout(hideControlsTimerRef.current)
+      hideControlsTimerRef.current = null
+    }
+  }, [])
+
+  const clearSegmentTimer = useCallback(() => {
+    if (segmentTimerRef.current) {
+      clearTimeout(segmentTimerRef.current)
+      segmentTimerRef.current = null
+    }
+  }, [])
+
+  const scheduleHideControls = useCallback(() => {
+    clearHideControlsTimer()
+    hideControlsTimerRef.current = setTimeout(() => {
+      setControlsVisible(false)
+    }, CONTROLS_AUTO_HIDE_MS)
+  }, [clearHideControlsTimer])
+
+  const showControls = useCallback(
+    (autoHide = true) => {
+      setControlsVisible(true)
+      if (autoHide && isPlaying) {
+        scheduleHideControls()
+      } else {
+        clearHideControlsTimer()
+      }
+    },
+    [clearHideControlsTimer, isPlaying, scheduleHideControls],
+  )
+
+  const toggleControls = useCallback(() => {
+    setControlsVisible((visible) => {
+      const next = !visible
+      if (next) {
+        if (isPlaying) scheduleHideControls()
+      } else {
+        clearHideControlsTimer()
+      }
+      return next
+    })
+  }, [clearHideControlsTimer, isPlaying, scheduleHideControls])
 
   useImperativeHandle(ref, () => ({
     getCurrentTime: () => {
@@ -85,9 +138,26 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
       return typeof value === 'number' && Number.isFinite(value) ? Math.floor(value) : 0
     },
     seekTo: (seconds: number) => {
+      clearSegmentTimer()
       if (!playerRef.current || !readyRef.current) return
       playerRef.current.seekTo(seconds, true)
       playerRef.current.playVideo()
+      showControls(true)
+    },
+    playSegment: (startSeconds: number, durationSeconds: number) => {
+      clearSegmentTimer()
+      if (!playerRef.current || !readyRef.current) return
+      playerRef.current.seekTo(startSeconds, true)
+      playerRef.current.playVideo()
+      showControls(true)
+      segmentTimerRef.current = setTimeout(() => {
+        playerRef.current?.pauseVideo()
+        setIsPlaying(false)
+        showControls(false)
+      }, durationSeconds * 1000)
+    },
+    cancelSegmentPlayback: () => {
+      clearSegmentTimer()
     },
   }))
 
@@ -99,6 +169,13 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
     document.addEventListener('fullscreenchange', handleFullscreenChange)
     return () => document.removeEventListener('fullscreenchange', handleFullscreenChange)
   }, [])
+
+  useEffect(() => {
+    return () => {
+      clearHideControlsTimer()
+      clearSegmentTimer()
+    }
+  }, [clearHideControlsTimer, clearSegmentTimer])
 
   const loadVideo = (rawId: string | null, startSeconds: number | null = null) => {
     const id = normalizeYouTubeVideoId(rawId)
@@ -115,6 +192,8 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
 
     const current = playerRef.current.getVideoData()?.video_id
     if (current === id && startSeconds == null) return
+
+    clearSegmentTimer()
 
     if (startSeconds != null && startSeconds >= 0) {
       playerRef.current.loadVideoById({ videoId: id, startSeconds })
@@ -160,9 +239,20 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
             }
           },
           onStateChange: (event) => {
-            if (event.data === window.YT.PlayerState.PLAYING) {
+            const playing = event.data === window.YT.PlayerState.PLAYING
+            const paused = event.data === window.YT.PlayerState.PAUSED
+
+            if (playing) {
+              setIsPlaying(true)
               const current = event.target.getVideoData().video_id
               if (isValidYouTubeVideoId(current)) onVideoChange?.(current)
+              scheduleHideControls()
+            }
+
+            if (paused || event.data === window.YT.PlayerState.ENDED) {
+              setIsPlaying(false)
+              clearHideControlsTimer()
+              setControlsVisible(true)
             }
           },
           onError: (event) => {
@@ -188,7 +278,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
         containerRef.current.innerHTML = ''
       }
     }
-  }, [mountKey, onVideoChange])
+  }, [mountKey, onVideoChange, clearHideControlsTimer, scheduleHideControls])
 
   useEffect(() => {
     loadVideo(videoId, startAtSeconds)
@@ -197,11 +287,14 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
   const handleRateChange = (rate: number) => {
     setPlaybackRate(rate)
     playerRef.current?.setPlaybackRate(rate)
+    showControls(true)
   }
 
   const handleFullscreen = async () => {
     const shell = shellRef.current
     if (!shell) return
+
+    showControls(false)
 
     try {
       if (document.fullscreenElement === shell) {
@@ -233,6 +326,16 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
         className={`relative w-full bg-black ${
           isFullscreen ? 'flex min-h-0 flex-1 flex-col' : 'aspect-video'
         }`}
+        onClick={toggleControls}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault()
+            toggleControls()
+          }
+        }}
+        role="button"
+        tabIndex={0}
+        aria-label={controlsVisible ? 'Ocultar controles' : 'Mostrar controles'}
       >
         <div
           ref={containerRef}
@@ -246,15 +349,35 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
             <button
               type="button"
               className="rounded-lg bg-yellow-400 px-4 py-2 text-base font-medium text-slate-900"
-              onClick={handleRetry}
+              onClick={(event) => {
+                event.stopPropagation()
+                handleRetry()
+              }}
             >
               Tentar novamente
             </button>
           </div>
         )}
 
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-black via-black/80 to-transparent px-4 pb-4 pt-16">
-          <div className="pointer-events-auto flex flex-wrap items-center gap-3">
+        {!controlsVisible && !playerError && (
+          <div className="pointer-events-none absolute inset-0 flex items-end justify-center pb-4">
+            <span className="rounded-full bg-black/70 px-3 py-1 text-xs text-slate-200">
+              Toque para mostrar controles
+            </span>
+          </div>
+        )}
+      </div>
+
+      <div
+        className={`overflow-hidden bg-black transition-all duration-300 ease-out ${
+          controlsVisible ? 'max-h-80 opacity-100' : 'max-h-0 opacity-0'
+        }`}
+        data-testid="video-player-controls"
+        onClick={(event) => event.stopPropagation()}
+        onKeyDown={(event) => event.stopPropagation()}
+      >
+        <div className="border-t border-slate-800 px-4 py-3">
+          <div className="flex flex-wrap items-center gap-3">
             <label className="text-sm font-medium text-slate-200" htmlFor="playback-rate">
               Velocidade
             </label>
@@ -295,7 +418,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
           </div>
 
           {toolbarExtra && (
-            <div className="pointer-events-auto mt-3 border-t border-white/10 pt-3">
+            <div className="mt-3 border-t border-slate-800 pt-3">
               {toolbarExtra}
             </div>
           )}

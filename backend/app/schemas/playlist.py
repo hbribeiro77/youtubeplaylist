@@ -38,6 +38,11 @@ class VideoMomentCreate(BaseModel):
     label: str = Field(default="", max_length=256)
 
 
+class VideoReplayUpdate(BaseModel):
+    replay_enabled: bool | None = None
+    replay_duration_seconds: int | None = None
+
+
 class VideoResponse(BaseModel):
     id: int
     youtube_video_id: str
@@ -49,6 +54,8 @@ class VideoResponse(BaseModel):
     thumbnail_url: str
     tags: list[str]
     transcript_status: str
+    replay_enabled: bool = False
+    replay_duration_seconds: int = 5
     moments: list[VideoMomentResponse] = []
 
     model_config = {"from_attributes": True}

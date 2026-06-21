@@ -20,6 +20,11 @@ export function PlaylistView({ playlist, onBack }: PlaylistViewProps) {
   const [markingMoment, setMarkingMoment] = useState(false)
   const cardRefs = useRef<Record<string, HTMLButtonElement | null>>({})
   const playerRef = useRef<VideoPlayerHandle>(null)
+  const pendingSegmentRef = useRef<{
+    videoId: string
+    start: number
+    duration: number
+  } | null>(null)
   const queryClient = useQueryClient()
 
   const { data: videos = [], isLoading, error } = useQuery({
@@ -42,6 +47,18 @@ export function PlaylistView({ playlist, onBack }: PlaylistViewProps) {
     element?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
   }, [activeVideoId])
 
+  useEffect(() => {
+    const pending = pendingSegmentRef.current
+    if (!pending || pending.videoId !== activeVideoId) return
+
+    const timer = window.setTimeout(() => {
+      playerRef.current?.playSegment(pending.start, pending.duration)
+      pendingSegmentRef.current = null
+    }, 700)
+
+    return () => window.clearTimeout(timer)
+  }, [activeVideoId, startAtSeconds])
+
   const handleSearch = useCallback((query: string) => {
     setSearchQuery(query)
   }, [])
@@ -49,6 +66,8 @@ export function PlaylistView({ playlist, onBack }: PlaylistViewProps) {
   const handleSelect = (video: Video) => {
     const id = video.youtube_video_id?.trim()
     if (!id) return
+    playerRef.current?.cancelSegmentPlayback()
+    pendingSegmentRef.current = null
     setStartAtSeconds(null)
     setActiveVideoId(id)
   }
@@ -57,11 +76,31 @@ export function PlaylistView({ playlist, onBack }: PlaylistViewProps) {
     const id = video.youtube_video_id?.trim()
     if (!id) return
 
+    playerRef.current?.cancelSegmentPlayback()
+
+    if (video.replay_enabled) {
+      const duration = video.replay_duration_seconds
+      if (id === activeVideoId) {
+        playerRef.current?.playSegment(moment.position_seconds, duration)
+        return
+      }
+
+      pendingSegmentRef.current = {
+        videoId: id,
+        start: moment.position_seconds,
+        duration,
+      }
+      setStartAtSeconds(moment.position_seconds)
+      setActiveVideoId(id)
+      return
+    }
+
     if (id === activeVideoId) {
       playerRef.current?.seekTo(moment.position_seconds)
       return
     }
 
+    pendingSegmentRef.current = null
     setStartAtSeconds(moment.position_seconds)
     setActiveVideoId(id)
   }
@@ -81,6 +120,16 @@ export function PlaylistView({ playlist, onBack }: PlaylistViewProps) {
 
   const handleDeleteMoment = async (video: Video, moment: VideoMoment) => {
     await api.deleteVideoMoment(video.id, moment.id)
+    await queryClient.invalidateQueries({ queryKey: ['videos', playlist.id] })
+  }
+
+  const handleReplayChange = async (video: Video, replayEnabled: boolean) => {
+    await api.updateVideoReplay(video.id, { replay_enabled: replayEnabled })
+    await queryClient.invalidateQueries({ queryKey: ['videos', playlist.id] })
+  }
+
+  const handleReplayDurationChange = async (video: Video, durationSeconds: number) => {
+    await api.updateVideoReplay(video.id, { replay_duration_seconds: durationSeconds })
     await queryClient.invalidateQueries({ queryKey: ['videos', playlist.id] })
   }
 
@@ -171,7 +220,8 @@ export function PlaylistView({ playlist, onBack }: PlaylistViewProps) {
               <div
                 key={video.id}
                 ref={(el) => {
-                  cardRefs.current[video.youtube_video_id] = el?.querySelector('button') ?? null
+                  cardRefs.current[video.youtube_video_id] =
+                    el?.querySelector<HTMLButtonElement>('button') ?? null
                 }}
               >
                 <VideoCard
@@ -181,6 +231,8 @@ export function PlaylistView({ playlist, onBack }: PlaylistViewProps) {
                   onSelect={handleSelect}
                   onPlayMoment={handlePlayMoment}
                   onDeleteMoment={handleDeleteMoment}
+                  onReplayChange={handleReplayChange}
+                  onReplayDurationChange={handleReplayDurationChange}
                 />
               </div>
             ))}

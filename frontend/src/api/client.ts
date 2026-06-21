@@ -20,8 +20,12 @@ export interface Video {
   thumbnail_url: string
   tags: string[]
   transcript_status: 'pending' | 'ok' | 'unavailable'
+  replay_enabled: boolean
+  replay_duration_seconds: number
   moments: VideoMoment[]
 }
+
+export const REPLAY_DURATION_OPTIONS = [5, 8, 10] as const
 
 export interface VideoMoment {
   id: number
@@ -67,5 +71,13 @@ export const api = {
     }),
   deleteVideoMoment: (videoId: number, momentId: number) =>
     request<void>(`/videos/${videoId}/moments/${momentId}`, { method: 'DELETE' }),
+  updateVideoReplay: (
+    videoId: number,
+    payload: { replay_enabled?: boolean; replay_duration_seconds?: number },
+  ) =>
+    request<Video>(`/videos/${videoId}/replay`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    }),
   seedTestData: () => request<{ playlist_id: number; seed_term: string }>('/test/seed', { method: 'POST' }),
 }

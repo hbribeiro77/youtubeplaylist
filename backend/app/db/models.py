@@ -43,6 +43,8 @@ class Video(Base):
     transcript_status: Mapped[TranscriptStatus] = mapped_column(
         Enum(TranscriptStatus), default=TranscriptStatus.pending
     )
+    replay_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
+    replay_duration_seconds: Mapped[int] = mapped_column(Integer, default=5)
 
     playlist: Mapped["Playlist"] = relationship(back_populates="videos")
     transcript: Mapped["Transcript | None"] = relationship(

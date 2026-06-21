@@ -1,4 +1,5 @@
 import type { Video, VideoMoment } from '../api/client'
+import { REPLAY_DURATION_OPTIONS } from '../api/client'
 import { formatDuration, highlightText, transcriptBadgeLabel } from '../utils/formatDuration'
 import { VideoMomentChips } from './VideoMomentChips'
 
@@ -9,6 +10,8 @@ interface VideoCardProps {
   onSelect: (video: Video) => void
   onPlayMoment: (video: Video, moment: VideoMoment) => void
   onDeleteMoment?: (video: Video, moment: VideoMoment) => void
+  onReplayChange: (video: Video, replayEnabled: boolean) => void
+  onReplayDurationChange: (video: Video, durationSeconds: number) => void
 }
 
 export function VideoCard({
@@ -18,6 +21,8 @@ export function VideoCard({
   onSelect,
   onPlayMoment,
   onDeleteMoment,
+  onReplayChange,
+  onReplayDurationChange,
 }: VideoCardProps) {
   const titleHtml = searchQuery
     ? { __html: highlightText(video.title, searchQuery) }
@@ -25,60 +30,118 @@ export function VideoCard({
   const displayNumber = video.position + 1
 
   return (
-    <button
-      type="button"
+    <div
       data-testid={isActive ? 'video-card-active' : 'video-card'}
-      onClick={() => onSelect(video)}
-      className={`flex w-full gap-2 rounded-xl p-2.5 text-left transition md:gap-2.5 md:p-3 ${
+      className={`rounded-xl transition ${
         isActive
           ? 'bg-yellow-50 text-slate-900 ring-2 ring-yellow-400'
-          : 'bg-slate-900 text-slate-100 hover:bg-slate-800'
+          : 'bg-slate-900 text-slate-100'
       }`}
     >
-      <span
-        className={`w-7 shrink-0 pt-0.5 text-right text-xs font-semibold tabular-nums md:w-8 md:text-sm ${
-          isActive ? 'text-yellow-700' : 'text-slate-500'
+      <button
+        type="button"
+        onClick={() => onSelect(video)}
+        className={`flex w-full gap-2 rounded-t-xl p-2.5 text-left md:gap-2.5 md:p-3 ${
+          isActive ? 'hover:bg-yellow-100' : 'hover:bg-slate-800'
         }`}
-        aria-label={`Vídeo ${displayNumber}`}
       >
-        {displayNumber}
-      </span>
-      <div className="relative shrink-0">
-        <img
-          src={video.thumbnail_url}
-          alt={video.title}
-          className="h-14 w-24 rounded-lg object-cover md:h-16 md:w-28"
-        />
-        <span className="absolute bottom-1 right-1 rounded bg-black/80 px-1 text-xs text-white">
-          {formatDuration(video.duration_seconds)}
-        </span>
-      </div>
-      <div className="min-w-0 flex-1">
-        {titleHtml ? (
-          <h3
-            className="line-clamp-2 text-sm font-semibold md:text-base"
-            dangerouslySetInnerHTML={titleHtml}
-          />
-        ) : (
-          <h3 className="line-clamp-2 text-sm font-semibold md:text-base">{video.title}</h3>
-        )}
-        <p className={`mt-1 line-clamp-1 text-xs md:line-clamp-2 md:text-sm ${isActive ? 'text-slate-600' : 'text-slate-400'}`}>
-          {video.description || 'Sem descrição'}
-        </p>
         <span
-          className={`mt-2 inline-block rounded-full px-2 py-0.5 text-xs ${
-            isActive ? 'bg-yellow-200 text-yellow-900' : 'bg-slate-700 text-slate-200'
+          className={`w-7 shrink-0 pt-0.5 text-right text-xs font-semibold tabular-nums md:w-8 md:text-sm ${
+            isActive ? 'text-yellow-700' : 'text-slate-500'
+          }`}
+          aria-label={`Vídeo ${displayNumber}`}
+        >
+          {displayNumber}
+        </span>
+        <div className="relative shrink-0">
+          <img
+            src={video.thumbnail_url}
+            alt={video.title}
+            className="h-14 w-24 rounded-lg object-cover md:h-16 md:w-28"
+          />
+          <span className="absolute bottom-1 right-1 rounded bg-black/80 px-1 text-xs text-white">
+            {formatDuration(video.duration_seconds)}
+          </span>
+        </div>
+        <div className="min-w-0 flex-1">
+          {titleHtml ? (
+            <h3
+              className="line-clamp-2 text-sm font-semibold md:text-base"
+              dangerouslySetInnerHTML={titleHtml}
+            />
+          ) : (
+            <h3 className="line-clamp-2 text-sm font-semibold md:text-base">{video.title}</h3>
+          )}
+          <p
+            className={`mt-1 line-clamp-1 text-xs md:line-clamp-2 md:text-sm ${
+              isActive ? 'text-slate-600' : 'text-slate-400'
+            }`}
+          >
+            {video.description || 'Sem descrição'}
+          </p>
+          <span
+            className={`mt-2 inline-block rounded-full px-2 py-0.5 text-xs ${
+              isActive ? 'bg-yellow-200 text-yellow-900' : 'bg-slate-700 text-slate-200'
+            }`}
+          >
+            {transcriptBadgeLabel(video.transcript_status)}
+          </span>
+          <VideoMomentChips
+            moments={video.moments ?? []}
+            isActive={isActive}
+            onPlayMoment={(moment) => onPlayMoment(video, moment)}
+            onDeleteMoment={onDeleteMoment ? (moment) => onDeleteMoment(video, moment) : undefined}
+          />
+        </div>
+      </button>
+
+      <div
+        className={`flex flex-wrap items-center gap-2 border-t px-2.5 py-2 md:px-3 ${
+          isActive ? 'border-yellow-200' : 'border-slate-800'
+        }`}
+        onClick={(event) => event.stopPropagation()}
+      >
+        <label
+          className={`flex items-center gap-2 text-xs md:text-sm ${
+            isActive ? 'text-slate-700' : 'text-slate-300'
           }`}
         >
-          {transcriptBadgeLabel(video.transcript_status)}
-        </span>
-        <VideoMomentChips
-          moments={video.moments ?? []}
-          isActive={isActive}
-          onPlayMoment={(moment) => onPlayMoment(video, moment)}
-          onDeleteMoment={onDeleteMoment ? (moment) => onDeleteMoment(video, moment) : undefined}
-        />
+          <input
+            type="checkbox"
+            data-testid="replay-checkbox"
+            checked={video.replay_enabled}
+            onChange={(event) => onReplayChange(video, event.target.checked)}
+            className="h-4 w-4 rounded border-slate-500"
+          />
+          Replay
+        </label>
+
+        {video.replay_enabled && (
+          <label
+            className={`flex items-center gap-2 text-xs md:text-sm ${
+              isActive ? 'text-slate-700' : 'text-slate-300'
+            }`}
+          >
+            <span>Duração</span>
+            <select
+              data-testid="replay-duration-select"
+              value={video.replay_duration_seconds}
+              onChange={(event) => onReplayDurationChange(video, Number(event.target.value))}
+              className={`rounded border px-2 py-1 text-xs md:text-sm ${
+                isActive
+                  ? 'border-yellow-300 bg-white text-slate-900'
+                  : 'border-slate-600 bg-slate-800 text-slate-100'
+              }`}
+            >
+              {REPLAY_DURATION_OPTIONS.map((seconds) => (
+                <option key={seconds} value={seconds}>
+                  {seconds}s
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
       </div>
-    </button>
+    </div>
   )
 }

@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from app.config import get_settings
 from app.db.fts import setup_fts
+from app.db.migrations import run_sqlite_migrations
 from app.db.models import Base
 
 _engine = None
@@ -41,6 +42,7 @@ def get_engine():
 def init_db() -> None:
     engine = get_engine()
     Base.metadata.create_all(bind=engine)
+    run_sqlite_migrations(engine)
     setup_fts(engine)
 
 

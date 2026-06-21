@@ -15,6 +15,8 @@ const sampleVideo: Video = {
   tags: ['docker'],
   transcript_status: 'ok',
   moments: [],
+  replay_enabled: false,
+  replay_duration_seconds: 5,
 }
 
 describe('VideoCard', () => {
@@ -25,6 +27,8 @@ describe('VideoCard', () => {
         isActive={false}
         onSelect={vi.fn()}
         onPlayMoment={vi.fn()}
+        onReplayChange={vi.fn()}
+        onReplayDurationChange={vi.fn()}
       />,
     )
     expect(screen.getByText('Docker basics')).toBeInTheDocument()
@@ -40,8 +44,25 @@ describe('VideoCard', () => {
         isActive
         onSelect={vi.fn()}
         onPlayMoment={vi.fn()}
+        onReplayChange={vi.fn()}
+        onReplayDurationChange={vi.fn()}
       />,
     )
     expect(screen.getByTestId('video-card-active')).toHaveClass('ring-yellow-400')
+  })
+
+  it('shows replay duration selector when replay is enabled', () => {
+    render(
+      <VideoCard
+        video={{ ...sampleVideo, replay_enabled: true, replay_duration_seconds: 8 }}
+        isActive={false}
+        onSelect={vi.fn()}
+        onPlayMoment={vi.fn()}
+        onReplayChange={vi.fn()}
+        onReplayDurationChange={vi.fn()}
+      />,
+    )
+    expect(screen.getByTestId('replay-checkbox')).toBeChecked()
+    expect(screen.getByTestId('replay-duration-select')).toHaveValue('8')
   })
 })
