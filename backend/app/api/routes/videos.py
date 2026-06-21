@@ -1,12 +1,28 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app.db.models import Video
 from app.db.session import get_db
-from app.schemas.playlist import VideoDetailResponse, VideoResponse, parse_tags
+from app.schemas.playlist import (
+    VideoDetailResponse,
+    VideoMomentCreate,
+    VideoMomentResponse,
+    VideoResponse,
+    parse_tags,
+)
 from app.services.search_service import search_videos
+from app.services.video_moment_service import create_moment, delete_moment, get_video_or_none
 
 router = APIRouter(tags=["videos"])
+
+
+def _moment_to_response(moment) -> VideoMomentResponse:
+    return VideoMomentResponse(
+        id=moment.id,
+        video_id=moment.video_id,
+        position_seconds=moment.position_seconds,
+        label=moment.label or "",
+    )
 
 
 def _to_video_response(video: Video) -> VideoResponse:
@@ -21,6 +37,7 @@ def _to_video_response(video: Video) -> VideoResponse:
         thumbnail_url=video.thumbnail_url,
         tags=parse_tags(video.tags_json),
         transcript_status=video.transcript_status.value,
+        moments=[_moment_to_response(moment) for moment in video.moments],
     )
 
 
@@ -31,12 +48,33 @@ def list_playlist_videos(
     db: Session = Depends(get_db),
 ) -> list[VideoResponse]:
     videos = search_videos(db, playlist_id, q)
-    return [_to_video_response(v) for v in videos]
+    if not videos:
+        return []
+
+    video_ids = [video.id for video in videos]
+    videos_with_moments = (
+        db.query(Video)
+        .options(joinedload(Video.moments))
+        .filter(Video.id.in_(video_ids))
+        .all()
+    )
+    moments_by_id = {video.id: video for video in videos_with_moments}
+
+    ordered: list[VideoResponse] = []
+    for video in videos:
+        loaded = moments_by_id.get(video.id, video)
+        ordered.append(_to_video_response(loaded))
+    return ordered
 
 
 @router.get("/videos/{video_id}", response_model=VideoDetailResponse)
 def get_video(video_id: int, db: Session = Depends(get_db)) -> VideoDetailResponse:
-    video = db.query(Video).filter(Video.id == video_id).first()
+    video = (
+        db.query(Video)
+        .options(joinedload(Video.moments))
+        .filter(Video.id == video_id)
+        .first()
+    )
     if video is None:
         raise HTTPException(status_code=404, detail="Vídeo não encontrado")
 
@@ -45,3 +83,39 @@ def get_video(video_id: int, db: Session = Depends(get_db)) -> VideoDetailRespon
         transcript_text=video.transcript.text if video.transcript else None,
     )
     return response
+
+
+@router.post("/videos/{video_id}/moments", response_model=VideoMomentResponse)
+def add_video_moment(
+    video_id: int,
+    payload: VideoMomentCreate,
+    db: Session = Depends(get_db),
+) -> VideoMomentResponse:
+    video = get_video_or_none(db, video_id)
+    if video is None:
+        raise HTTPException(status_code=404, detail="Vídeo não encontrado")
+
+    if video.duration_seconds > 0 and payload.position_seconds > video.duration_seconds:
+        raise HTTPException(status_code=400, detail="Momento além da duração do vídeo")
+
+    moment = create_moment(
+        db,
+        video,
+        position_seconds=payload.position_seconds,
+        label=payload.label,
+    )
+    return _moment_to_response(moment)
+
+
+@router.delete("/videos/{video_id}/moments/{moment_id}", status_code=204)
+def remove_video_moment(
+    video_id: int,
+    moment_id: int,
+    db: Session = Depends(get_db),
+) -> None:
+    video = get_video_or_none(db, video_id)
+    if video is None:
+        raise HTTPException(status_code=404, detail="Vídeo não encontrado")
+
+    if not delete_moment(db, video, moment_id):
+        raise HTTPException(status_code=404, detail="Momento não encontrado")

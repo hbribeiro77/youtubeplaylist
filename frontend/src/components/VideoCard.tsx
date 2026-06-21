@@ -1,14 +1,24 @@
-import type { Video } from '../api/client'
+import type { Video, VideoMoment } from '../api/client'
 import { formatDuration, highlightText, transcriptBadgeLabel } from '../utils/formatDuration'
+import { VideoMomentChips } from './VideoMomentChips'
 
 interface VideoCardProps {
   video: Video
   isActive: boolean
   searchQuery?: string
   onSelect: (video: Video) => void
+  onPlayMoment: (video: Video, moment: VideoMoment) => void
+  onDeleteMoment?: (video: Video, moment: VideoMoment) => void
 }
 
-export function VideoCard({ video, isActive, searchQuery = '', onSelect }: VideoCardProps) {
+export function VideoCard({
+  video,
+  isActive,
+  searchQuery = '',
+  onSelect,
+  onPlayMoment,
+  onDeleteMoment,
+}: VideoCardProps) {
   const titleHtml = searchQuery
     ? { __html: highlightText(video.title, searchQuery) }
     : undefined
@@ -62,6 +72,12 @@ export function VideoCard({ video, isActive, searchQuery = '', onSelect }: Video
         >
           {transcriptBadgeLabel(video.transcript_status)}
         </span>
+        <VideoMomentChips
+          moments={video.moments ?? []}
+          isActive={isActive}
+          onPlayMoment={(moment) => onPlayMoment(video, moment)}
+          onDeleteMoment={onDeleteMoment ? (moment) => onDeleteMoment(video, moment) : undefined}
+        />
       </div>
     </button>
   )

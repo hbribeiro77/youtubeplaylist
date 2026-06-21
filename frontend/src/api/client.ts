@@ -20,6 +20,14 @@ export interface Video {
   thumbnail_url: string
   tags: string[]
   transcript_status: 'pending' | 'ok' | 'unavailable'
+  moments: VideoMoment[]
+}
+
+export interface VideoMoment {
+  id: number
+  video_id: number
+  position_seconds: number
+  label: string
 }
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
@@ -30,6 +38,9 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   if (!response.ok) {
     const detail = await response.text()
     throw new Error(detail || `Erro HTTP ${response.status}`)
+  }
+  if (response.status === 204) {
+    return undefined as T
   }
   return response.json() as Promise<T>
 }
@@ -49,5 +60,12 @@ export const api = {
     const params = q ? `?q=${encodeURIComponent(q)}` : ''
     return request<Video[]>(`/playlists/${playlistId}/videos${params}`)
   },
+  addVideoMoment: (videoId: number, position_seconds: number, label = '') =>
+    request<VideoMoment>(`/videos/${videoId}/moments`, {
+      method: 'POST',
+      body: JSON.stringify({ position_seconds, label }),
+    }),
+  deleteVideoMoment: (videoId: number, momentId: number) =>
+    request<void>(`/videos/${videoId}/moments/${momentId}`, { method: 'DELETE' }),
   seedTestData: () => request<{ playlist_id: number; seed_term: string }>('/test/seed', { method: 'POST' }),
 }

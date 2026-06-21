@@ -48,6 +48,21 @@ class Video(Base):
     transcript: Mapped["Transcript | None"] = relationship(
         back_populates="video", uselist=False, cascade="all, delete-orphan"
     )
+    moments: Mapped[list["VideoMoment"]] = relationship(
+        back_populates="video", cascade="all, delete-orphan", order_by="VideoMoment.position_seconds"
+    )
+
+
+class VideoMoment(Base):
+    __tablename__ = "video_moments"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    video_id: Mapped[int] = mapped_column(ForeignKey("videos.id", ondelete="CASCADE"), index=True)
+    position_seconds: Mapped[int] = mapped_column(Integer)
+    label: Mapped[str] = mapped_column(String(256), default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+    video: Mapped["Video"] = relationship(back_populates="moments")
 
 
 class Transcript(Base):

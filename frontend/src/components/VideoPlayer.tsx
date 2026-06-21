@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react'
 import { isValidYouTubeVideoId, normalizeYouTubeVideoId } from '../utils/youtubeVideoId'
 
 declare global {
@@ -8,9 +8,17 @@ declare global {
   }
 }
 
+export interface VideoPlayerHandle {
+  getCurrentTime: () => number
+  seekTo: (seconds: number) => void
+}
+
 interface VideoPlayerProps {
   videoId: string | null
+  startAtSeconds?: number | null
   onVideoChange?: (videoId: string) => void
+  onMarkMoment?: () => void
+  markingDisabled?: boolean
   className?: string
 }
 
@@ -40,16 +48,39 @@ function loadYouTubeApi(): Promise<void> {
 
 const PLAYBACK_RATES = [0.5, 0.75, 1, 1.25, 1.5, 2]
 
-export function VideoPlayer({ videoId, onVideoChange, className = '' }: VideoPlayerProps) {
+export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(function VideoPlayer(
+  {
+    videoId,
+    startAtSeconds = null,
+    onVideoChange,
+    onMarkMoment,
+    markingDisabled = false,
+    className = '',
+  },
+  ref,
+) {
   const containerRef = useRef<HTMLDivElement>(null)
   const playerRef = useRef<YT.Player | null>(null)
   const readyRef = useRef(false)
   const pendingVideoRef = useRef<string | null>(normalizeYouTubeVideoId(videoId))
+  const pendingStartRef = useRef<number | null>(startAtSeconds)
   const [playbackRate, setPlaybackRate] = useState(1)
   const [playerError, setPlayerError] = useState<string | null>(null)
   const [mountKey, setMountKey] = useState(0)
 
-  const loadVideo = (rawId: string | null) => {
+  useImperativeHandle(ref, () => ({
+    getCurrentTime: () => {
+      const value = playerRef.current?.getCurrentTime?.()
+      return typeof value === 'number' && Number.isFinite(value) ? Math.floor(value) : 0
+    },
+    seekTo: (seconds: number) => {
+      if (!playerRef.current || !readyRef.current) return
+      playerRef.current.seekTo(seconds, true)
+      playerRef.current.playVideo()
+    },
+  }))
+
+  const loadVideo = (rawId: string | null, startSeconds: number | null = null) => {
     const id = normalizeYouTubeVideoId(rawId)
     if (!id) {
       setPlayerError('ID de vídeo inválido')
@@ -58,11 +89,17 @@ export function VideoPlayer({ videoId, onVideoChange, className = '' }: VideoPla
 
     setPlayerError(null)
     pendingVideoRef.current = id
+    pendingStartRef.current = startSeconds
 
     if (!playerRef.current || !readyRef.current) return
 
     const current = playerRef.current.getVideoData()?.video_id
-    if (current === id) return
+    if (current === id && startSeconds == null) return
+
+    if (startSeconds != null && startSeconds >= 0) {
+      playerRef.current.loadVideoById({ videoId: id, startSeconds })
+      return
+    }
 
     playerRef.current.loadVideoById(id)
   }
@@ -90,7 +127,15 @@ export function VideoPlayer({ videoId, onVideoChange, className = '' }: VideoPla
           onReady: (event) => {
             readyRef.current = true
             if (pendingVideoRef.current) {
-              event.target.loadVideoById(pendingVideoRef.current)
+              const start = pendingStartRef.current
+              if (start != null && start >= 0) {
+                event.target.loadVideoById({
+                  videoId: pendingVideoRef.current,
+                  startSeconds: start,
+                })
+              } else {
+                event.target.loadVideoById(pendingVideoRef.current)
+              }
             }
           },
           onStateChange: (event) => {
@@ -125,8 +170,8 @@ export function VideoPlayer({ videoId, onVideoChange, className = '' }: VideoPla
   }, [mountKey, onVideoChange])
 
   useEffect(() => {
-    loadVideo(videoId)
-  }, [videoId])
+    loadVideo(videoId, startAtSeconds)
+  }, [videoId, startAtSeconds])
 
   const handleRateChange = (rate: number) => {
     setPlaybackRate(rate)
@@ -142,7 +187,7 @@ export function VideoPlayer({ videoId, onVideoChange, className = '' }: VideoPla
     readyRef.current = false
     playerRef.current = null
     setMountKey((value) => value + 1)
-    loadVideo(videoId)
+    loadVideo(videoId, startAtSeconds)
   }
 
   return (
@@ -165,7 +210,7 @@ export function VideoPlayer({ videoId, onVideoChange, className = '' }: VideoPla
           </div>
         )}
       </div>
-      <div className="flex items-center gap-2 border-b border-slate-800 px-3 py-2">
+      <div className="flex flex-wrap items-center gap-2 border-b border-slate-800 px-3 py-2">
         <label className="text-xs text-slate-300" htmlFor="playback-rate">
           Velocidade
         </label>
@@ -182,6 +227,17 @@ export function VideoPlayer({ videoId, onVideoChange, className = '' }: VideoPla
             </option>
           ))}
         </select>
+        {onMarkMoment && (
+          <button
+            type="button"
+            data-testid="mark-moment-button"
+            disabled={markingDisabled || !videoId}
+            onClick={onMarkMoment}
+            className="rounded bg-yellow-400 px-3 py-1 text-sm font-medium text-slate-900 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            Marcar momento
+          </button>
+        )}
         <button
           type="button"
           data-testid="fullscreen-button"
@@ -193,4 +249,4 @@ export function VideoPlayer({ videoId, onVideoChange, className = '' }: VideoPla
       </div>
     </div>
   )
-}
+})

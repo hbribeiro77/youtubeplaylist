@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { api, type Playlist, type Video } from '../api/client'
+import { api, type Playlist, type Video, type VideoMoment } from '../api/client'
 import { PlaylistHome } from './PlaylistHome'
 import { SearchBar } from './SearchBar'
 import { VideoCard } from './VideoCard'
-import { VideoPlayer } from './VideoPlayer'
+import { VideoMomentChips } from './VideoMomentChips'
+import { VideoPlayer, type VideoPlayerHandle } from './VideoPlayer'
 
 interface PlaylistViewProps {
   playlist: Playlist
@@ -14,14 +15,19 @@ interface PlaylistViewProps {
 export function PlaylistView({ playlist, onBack }: PlaylistViewProps) {
   const [searchQuery, setSearchQuery] = useState('')
   const [activeVideoId, setActiveVideoId] = useState<string | null>(null)
+  const [startAtSeconds, setStartAtSeconds] = useState<number | null>(null)
   const [syncing, setSyncing] = useState(false)
+  const [markingMoment, setMarkingMoment] = useState(false)
   const cardRefs = useRef<Record<string, HTMLButtonElement | null>>({})
+  const playerRef = useRef<VideoPlayerHandle>(null)
   const queryClient = useQueryClient()
 
   const { data: videos = [], isLoading, error } = useQuery({
     queryKey: ['videos', playlist.id, searchQuery],
     queryFn: () => api.listVideos(playlist.id, searchQuery || undefined),
   })
+
+  const activeVideo = videos.find((video) => video.youtube_video_id === activeVideoId) ?? null
 
   useEffect(() => {
     if (!activeVideoId && videos.length > 0) {
@@ -42,7 +48,40 @@ export function PlaylistView({ playlist, onBack }: PlaylistViewProps) {
 
   const handleSelect = (video: Video) => {
     const id = video.youtube_video_id?.trim()
-    if (id) setActiveVideoId(id)
+    if (!id) return
+    setStartAtSeconds(null)
+    setActiveVideoId(id)
+  }
+
+  const handlePlayMoment = (video: Video, moment: VideoMoment) => {
+    const id = video.youtube_video_id?.trim()
+    if (!id) return
+
+    if (id === activeVideoId) {
+      playerRef.current?.seekTo(moment.position_seconds)
+      return
+    }
+
+    setStartAtSeconds(moment.position_seconds)
+    setActiveVideoId(id)
+  }
+
+  const handleMarkMoment = async () => {
+    if (!activeVideo || !playerRef.current) return
+
+    setMarkingMoment(true)
+    try {
+      const positionSeconds = playerRef.current.getCurrentTime()
+      await api.addVideoMoment(activeVideo.id, positionSeconds)
+      await queryClient.invalidateQueries({ queryKey: ['videos', playlist.id] })
+    } finally {
+      setMarkingMoment(false)
+    }
+  }
+
+  const handleDeleteMoment = async (video: Video, moment: VideoMoment) => {
+    await api.deleteVideoMoment(video.id, moment.id)
+    await queryClient.invalidateQueries({ queryKey: ['videos', playlist.id] })
   }
 
   const handleSync = async () => {
@@ -84,7 +123,25 @@ export function PlaylistView({ playlist, onBack }: PlaylistViewProps) {
           className="md:sticky md:top-[57px] md:flex md:h-[calc(100vh-57px)] md:w-[34%] md:shrink-0 md:flex-col md:border-r md:border-slate-800 lg:w-[30%]"
           data-testid="player-column"
         >
-          <VideoPlayer videoId={activeVideoId} onVideoChange={setActiveVideoId} />
+          <VideoPlayer
+            ref={playerRef}
+            videoId={activeVideoId}
+            startAtSeconds={startAtSeconds}
+            onVideoChange={setActiveVideoId}
+            onMarkMoment={handleMarkMoment}
+            markingDisabled={markingMoment || !activeVideo}
+          />
+          {activeVideo && (activeVideo.moments?.length ?? 0) > 0 && (
+            <div className="border-b border-slate-800 px-3 py-2">
+              <p className="mb-1 text-xs text-slate-400">Momentos deste vídeo</p>
+              <VideoMomentChips
+                moments={activeVideo.moments}
+                isActive
+                onPlayMoment={(moment) => handlePlayMoment(activeVideo, moment)}
+                onDeleteMoment={(moment) => handleDeleteMoment(activeVideo, moment)}
+              />
+            </div>
+          )}
         </aside>
 
         <main
@@ -120,6 +177,8 @@ export function PlaylistView({ playlist, onBack }: PlaylistViewProps) {
                   isActive={video.youtube_video_id === activeVideoId}
                   searchQuery={searchQuery}
                   onSelect={handleSelect}
+                  onPlayMoment={handlePlayMoment}
+                  onDeleteMoment={handleDeleteMoment}
                 />
               </div>
             ))}

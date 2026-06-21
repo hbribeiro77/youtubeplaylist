@@ -24,6 +24,20 @@ class PlaylistResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class VideoMomentResponse(BaseModel):
+    id: int
+    video_id: int
+    position_seconds: int
+    label: str
+
+    model_config = {"from_attributes": True}
+
+
+class VideoMomentCreate(BaseModel):
+    position_seconds: int = Field(ge=0)
+    label: str = Field(default="", max_length=256)
+
+
 class VideoResponse(BaseModel):
     id: int
     youtube_video_id: str
@@ -35,6 +49,7 @@ class VideoResponse(BaseModel):
     thumbnail_url: str
     tags: list[str]
     transcript_status: str
+    moments: list[VideoMomentResponse] = []
 
     model_config = {"from_attributes": True}
 

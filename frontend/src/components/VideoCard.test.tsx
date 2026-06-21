@@ -14,11 +14,19 @@ const sampleVideo: Video = {
   thumbnail_url: 'https://example.com/thumb.jpg',
   tags: ['docker'],
   transcript_status: 'ok',
+  moments: [],
 }
 
 describe('VideoCard', () => {
   it('renders thumbnail, title, duration and playlist number', () => {
-    render(<VideoCard video={sampleVideo} isActive={false} onSelect={vi.fn()} />)
+    render(
+      <VideoCard
+        video={sampleVideo}
+        isActive={false}
+        onSelect={vi.fn()}
+        onPlayMoment={vi.fn()}
+      />,
+    )
     expect(screen.getByText('Docker basics')).toBeInTheDocument()
     expect(screen.getByText('3:32')).toBeInTheDocument()
     expect(screen.getByLabelText('Vídeo 1')).toHaveTextContent('1')
@@ -26,7 +34,14 @@ describe('VideoCard', () => {
   })
 
   it('applies active highlight styles', () => {
-    render(<VideoCard video={sampleVideo} isActive onSelect={vi.fn()} />)
+    render(
+      <VideoCard
+        video={sampleVideo}
+        isActive
+        onSelect={vi.fn()}
+        onPlayMoment={vi.fn()}
+      />,
+    )
     expect(screen.getByTestId('video-card-active')).toHaveClass('ring-yellow-400')
   })
 })
