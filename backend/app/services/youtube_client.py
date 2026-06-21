@@ -18,6 +18,25 @@ PIPED_API_INSTANCES = [
     "https://piped-api.lunar.icu",
 ]
 
+PLAYLIST_PAGE_SIZE = 100
+MAX_PLAYLIST_VIDEOS = 10_000
+
+
+@dataclass
+class YtVideoMetadata:
+    youtube_video_id: str
+    title: str
+    description: str
+    duration_seconds: int
+    thumbnail_url: str
+    tags: list[str]
+
+
+@dataclass
+class YtPlaylistMetadata:
+    title: str
+    videos: list[YtVideoMetadata]
+
 
 def normalize_video_id(entry: dict[str, Any]) -> str | None:
     video_id = entry.get("id")
@@ -39,7 +58,7 @@ def _thumbnail_from_entry(entry: dict[str, Any], video_id: str) -> str:
     return f"https://i.ytimg.com/vi/{video_id}/mqdefault.jpg"
 
 
-def parse_ytdlp_entries(entries: list[Any]) -> list["YtVideoMetadata"]:
+def parse_ytdlp_entries(entries: list[Any]) -> list[YtVideoMetadata]:
     videos: list[YtVideoMetadata] = []
     for entry in entries:
         if not entry:
@@ -60,20 +79,16 @@ def parse_ytdlp_entries(entries: list[Any]) -> list["YtVideoMetadata"]:
     return videos
 
 
-@dataclass
-class YtVideoMetadata:
-    youtube_video_id: str
-    title: str
-    description: str
-    duration_seconds: int
-    thumbnail_url: str
-    tags: list[str]
-
-
-@dataclass
-class YtPlaylistMetadata:
-    title: str
-    videos: list[YtVideoMetadata]
+def merge_video_lists(chunks: list[list[YtVideoMetadata]]) -> list[YtVideoMetadata]:
+    seen: set[str] = set()
+    merged: list[YtVideoMetadata] = []
+    for chunk in chunks:
+        for video in chunk:
+            if video.youtube_video_id in seen:
+                continue
+            seen.add(video.youtube_video_id)
+            merged.append(video)
+    return merged
 
 
 class YouTubeClient:
@@ -110,13 +125,13 @@ class YouTubeClient:
             f"Detalhe: {detail}"
         )
 
-    def _ytdlp_options(self, *, extract_flat: bool) -> dict[str, Any]:
-        return {
+    def _ytdlp_options(self, *, extract_flat: bool, playlist_start: int | None = None, playlist_end: int | None = None) -> dict[str, Any]:
+        options: dict[str, Any] = {
             "quiet": True,
             "no_warnings": True,
             "skip_download": True,
             "ignoreerrors": True,
-            "socket_timeout": 30,
+            "socket_timeout": 60,
             "retries": 3,
             "extract_flat": "in_playlist" if extract_flat else False,
             "extractor_args": {
@@ -125,17 +140,61 @@ class YouTubeClient:
                 }
             },
         }
+        if playlist_start is not None:
+            options["playliststart"] = playlist_start
+        if playlist_end is not None:
+            options["playlistend"] = playlist_end
+        return options
 
     def _fetch_with_ytdlp_flat(self, playlist_id: str) -> YtPlaylistMetadata:
         url = f"https://www.youtube.com/playlist?list={playlist_id}"
-        with yt_dlp.YoutubeDL(self._ytdlp_options(extract_flat=True)) as ydl:
-            info = ydl.extract_info(url, download=False)
+        title = "Playlist"
+        chunks: list[list[YtVideoMetadata]] = []
+        start = 1
 
-        if not info:
-            raise ValueError("Playlist não encontrada")
+        while start <= MAX_PLAYLIST_VIDEOS:
+            end = start + PLAYLIST_PAGE_SIZE - 1
+            with yt_dlp.YoutubeDL(self._ytdlp_options(extract_flat=True, playlist_start=start, playlist_end=end)) as ydl:
+                info = ydl.extract_info(url, download=False)
 
-        videos = parse_ytdlp_entries(list(info.get("entries") or []))
-        return YtPlaylistMetadata(title=info.get("title") or "Playlist", videos=videos)
+            if not info:
+                if start == 1:
+                    raise ValueError("Playlist não encontrada")
+                break
+
+            if start == 1:
+                title = info.get("title") or title
+
+            entries = [entry for entry in (info.get("entries") or []) if entry]
+            if not entries:
+                break
+
+            page_videos = parse_ytdlp_entries(entries)
+            if not page_videos:
+                break
+
+            chunks.append(page_videos)
+            logger.info(
+                "Playlist %s: página %s-%s retornou %s vídeos",
+                playlist_id,
+                start,
+                end,
+                len(page_videos),
+            )
+
+            if len(entries) < PLAYLIST_PAGE_SIZE:
+                break
+
+            start += PLAYLIST_PAGE_SIZE
+
+        videos = merge_video_lists(chunks)
+        if not videos:
+            raise ValueError("Playlist vazia ou inacessível")
+
+        if len(videos) >= MAX_PLAYLIST_VIDEOS:
+            logger.warning("Playlist %s atingiu limite de %s vídeos", playlist_id, MAX_PLAYLIST_VIDEOS)
+
+        return YtPlaylistMetadata(title=title, videos=videos)
 
     def _fetch_with_piped(self, playlist_id: str) -> YtPlaylistMetadata:
         last_error: Exception | None = None

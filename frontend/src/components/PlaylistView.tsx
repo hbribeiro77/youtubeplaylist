@@ -57,7 +57,7 @@ export function PlaylistView({ playlist, onBack }: PlaylistViewProps) {
   }
 
   return (
-    <div className="mx-auto flex min-h-screen max-w-3xl flex-col">
+    <div className="mx-auto flex min-h-screen w-full max-w-7xl flex-col">
       <header className="flex items-center gap-2 border-b border-slate-800 px-3 py-3">
         <button
           type="button"
@@ -67,7 +67,7 @@ export function PlaylistView({ playlist, onBack }: PlaylistViewProps) {
         >
           ← Playlists
         </button>
-        <h1 className="min-w-0 flex-1 truncate text-base font-bold">{playlist.title}</h1>
+        <h1 className="min-w-0 flex-1 truncate text-base font-bold md:text-lg">{playlist.title}</h1>
         <button
           type="button"
           data-testid="sync-playlist"
@@ -79,30 +79,52 @@ export function PlaylistView({ playlist, onBack }: PlaylistViewProps) {
         </button>
       </header>
 
-      <VideoPlayer videoId={activeVideoId} onVideoChange={setActiveVideoId} />
-      <SearchBar onSearch={handleSearch} />
+      <div className="flex flex-1 flex-col md:min-h-[calc(100vh-57px)] md:flex-row">
+        <aside
+          className="md:sticky md:top-[57px] md:flex md:h-[calc(100vh-57px)] md:w-[34%] md:shrink-0 md:flex-col md:border-r md:border-slate-800 lg:w-[30%]"
+          data-testid="player-column"
+        >
+          <VideoPlayer videoId={activeVideoId} onVideoChange={setActiveVideoId} />
+        </aside>
 
-      <div className="flex flex-col gap-3 px-3 pb-8" data-testid="video-list">
-        {isLoading && <p className="px-2 text-sm text-slate-400">Carregando vídeos...</p>}
-        {error && <p className="px-2 text-sm text-red-400">{(error as Error).message}</p>}
-        {!isLoading && videos.length === 0 && (
-          <p className="px-2 text-sm text-slate-400">Nenhum vídeo encontrado.</p>
-        )}
-        {videos.map((video) => (
+        <main
+          className="flex min-w-0 flex-1 flex-col md:max-h-[calc(100vh-57px)] md:overflow-hidden"
+          data-testid="videos-column"
+        >
+          <SearchBar onSearch={handleSearch} />
+
           <div
-            key={video.id}
-            ref={(el) => {
-              cardRefs.current[video.youtube_video_id] = el?.querySelector('button') ?? null
-            }}
+            className="flex flex-1 flex-col gap-3 overflow-y-auto px-3 pb-8 md:px-4"
+            data-testid="video-list"
           >
-            <VideoCard
-              video={video}
-              isActive={video.youtube_video_id === activeVideoId}
-              searchQuery={searchQuery}
-              onSelect={handleSelect}
-            />
+            {isLoading && <p className="px-2 text-sm text-slate-400">Carregando vídeos...</p>}
+            {error && <p className="px-2 text-sm text-red-400">{(error as Error).message}</p>}
+            {!isLoading && videos.length === 0 && (
+              <p className="px-2 text-sm text-slate-400">Nenhum vídeo encontrado.</p>
+            )}
+            {!isLoading && videos.length > 0 && (
+              <p className="px-2 text-xs text-slate-500">
+                {videos.length} vídeo{videos.length === 1 ? '' : 's'}
+                {playlist.video_count > videos.length ? ` (playlist com ${playlist.video_count})` : ''}
+              </p>
+            )}
+            {videos.map((video) => (
+              <div
+                key={video.id}
+                ref={(el) => {
+                  cardRefs.current[video.youtube_video_id] = el?.querySelector('button') ?? null
+                }}
+              >
+                <VideoCard
+                  video={video}
+                  isActive={video.youtube_video_id === activeVideoId}
+                  searchQuery={searchQuery}
+                  onSelect={handleSelect}
+                />
+              </div>
+            ))}
           </div>
-        ))}
+        </main>
       </div>
     </div>
   )

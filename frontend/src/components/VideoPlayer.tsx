@@ -11,6 +11,7 @@ declare global {
 interface VideoPlayerProps {
   videoId: string | null
   onVideoChange?: (videoId: string) => void
+  className?: string
 }
 
 let apiReadyPromise: Promise<void> | null = null
@@ -39,7 +40,7 @@ function loadYouTubeApi(): Promise<void> {
 
 const PLAYBACK_RATES = [0.5, 0.75, 1, 1.25, 1.5, 2]
 
-export function VideoPlayer({ videoId, onVideoChange }: VideoPlayerProps) {
+export function VideoPlayer({ videoId, onVideoChange, className = '' }: VideoPlayerProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const playerRef = useRef<YT.Player | null>(null)
   const readyRef = useRef(false)
@@ -145,7 +146,10 @@ export function VideoPlayer({ videoId, onVideoChange }: VideoPlayerProps) {
   }
 
   return (
-    <div className="sticky top-0 z-20 bg-slate-950" data-testid="video-player">
+    <div
+      className={`sticky top-0 z-20 bg-slate-950 md:static md:z-auto ${className}`}
+      data-testid="video-player"
+    >
       <div className="relative aspect-video w-full bg-black">
         <div ref={containerRef} id="player" className="h-full w-full" />
         {playerError && (
