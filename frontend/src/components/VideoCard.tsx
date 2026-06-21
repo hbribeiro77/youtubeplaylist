@@ -1,7 +1,7 @@
 import type { Video, VideoMoment } from '../api/client'
-import { REPLAY_DURATION_OPTIONS } from '../api/client'
 import { formatDuration, highlightText, transcriptBadgeLabel } from '../utils/formatDuration'
 import { VideoMomentChips } from './VideoMomentChips'
+import { VideoPlaybackControls } from './VideoPlaybackControls'
 
 interface VideoCardProps {
   video: Video
@@ -11,6 +11,7 @@ interface VideoCardProps {
   onPlayMoment: (video: Video, moment: VideoMoment) => void
   onDeleteMoment?: (video: Video, moment: VideoMoment) => void
   onReplayChange: (video: Video, replayEnabled: boolean) => void
+  onLoopChange: (video: Video, loopEnabled: boolean) => void
   onReplayDurationChange: (video: Video, durationSeconds: number) => void
 }
 
@@ -22,6 +23,7 @@ export function VideoCard({
   onPlayMoment,
   onDeleteMoment,
   onReplayChange,
+  onLoopChange,
   onReplayDurationChange,
 }: VideoCardProps) {
   const titleHtml = searchQuery
@@ -96,51 +98,18 @@ export function VideoCard({
       </button>
 
       <div
-        className={`flex flex-wrap items-center gap-2 border-t px-2.5 py-2 md:px-3 ${
+        className={`border-t px-2.5 py-2 md:px-3 ${
           isActive ? 'border-yellow-200' : 'border-slate-800'
         }`}
-        onClick={(event) => event.stopPropagation()}
       >
-        <label
-          className={`flex items-center gap-2 text-xs md:text-sm ${
-            isActive ? 'text-slate-700' : 'text-slate-300'
-          }`}
-        >
-          <input
-            type="checkbox"
-            data-testid="replay-checkbox"
-            checked={video.replay_enabled}
-            onChange={(event) => onReplayChange(video, event.target.checked)}
-            className="h-4 w-4 rounded border-slate-500"
-          />
-          Replay
-        </label>
-
-        {video.replay_enabled && (
-          <label
-            className={`flex items-center gap-2 text-xs md:text-sm ${
-              isActive ? 'text-slate-700' : 'text-slate-300'
-            }`}
-          >
-            <span>Duração</span>
-            <select
-              data-testid="replay-duration-select"
-              value={video.replay_duration_seconds}
-              onChange={(event) => onReplayDurationChange(video, Number(event.target.value))}
-              className={`rounded border px-2 py-1 text-xs md:text-sm ${
-                isActive
-                  ? 'border-yellow-300 bg-white text-slate-900'
-                  : 'border-slate-600 bg-slate-800 text-slate-100'
-              }`}
-            >
-              {REPLAY_DURATION_OPTIONS.map((seconds) => (
-                <option key={seconds} value={seconds}>
-                  {seconds}s
-                </option>
-              ))}
-            </select>
-          </label>
-        )}
+        <VideoPlaybackControls
+          video={video}
+          variant="card"
+          isActive={isActive}
+          onReplayChange={onReplayChange}
+          onLoopChange={onLoopChange}
+          onReplayDurationChange={onReplayDurationChange}
+        />
       </div>
     </div>
   )

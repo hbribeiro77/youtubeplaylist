@@ -21,6 +21,17 @@ def test_update_video_replay_settings(client, seed_playlist):
     assert other["replay_duration_seconds"] == 5
 
 
+def test_update_video_loop_setting(client, seed_playlist):
+    video = seed_playlist["videos"][0]
+
+    response = client.patch(
+        f"/videos/{video.id}/replay",
+        json={"loop_enabled": True},
+    )
+    assert response.status_code == 200
+    assert response.json()["loop_enabled"] is True
+
+
 def test_update_replay_rejects_invalid_duration(client, seed_playlist):
     video = seed_playlist["videos"][0]
     response = client.patch(

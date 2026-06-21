@@ -41,6 +41,7 @@ def _to_video_response(video: Video) -> VideoResponse:
         transcript_status=video.transcript_status.value,
         replay_enabled=video.replay_enabled,
         replay_duration_seconds=video.replay_duration_seconds,
+        loop_enabled=video.loop_enabled,
         moments=[_moment_to_response(moment) for moment in video.moments],
     )
 
@@ -142,6 +143,9 @@ def update_video_replay_settings(
 
     if payload.replay_enabled is not None:
         video.replay_enabled = payload.replay_enabled
+
+    if payload.loop_enabled is not None:
+        video.loop_enabled = payload.loop_enabled
 
     if payload.replay_duration_seconds is not None:
         if payload.replay_duration_seconds not in REPLAY_DURATION_OPTIONS:

@@ -29,3 +29,11 @@ def run_sqlite_migrations(engine) -> None:
                     f"ADD COLUMN replay_duration_seconds INTEGER NOT NULL DEFAULT {DEFAULT_REPLAY_DURATION_SECONDS}"
                 )
             )
+
+        if "loop_enabled" not in columns:
+            connection.execute(
+                text(
+                    "ALTER TABLE videos "
+                    "ADD COLUMN loop_enabled BOOLEAN NOT NULL DEFAULT 0"
+                )
+            )

@@ -22,6 +22,7 @@ export interface Video {
   transcript_status: 'pending' | 'ok' | 'unavailable'
   replay_enabled: boolean
   replay_duration_seconds: number
+  loop_enabled: boolean
   moments: VideoMoment[]
 }
 
@@ -73,7 +74,11 @@ export const api = {
     request<void>(`/videos/${videoId}/moments/${momentId}`, { method: 'DELETE' }),
   updateVideoReplay: (
     videoId: number,
-    payload: { replay_enabled?: boolean; replay_duration_seconds?: number },
+    payload: {
+      replay_enabled?: boolean
+      replay_duration_seconds?: number
+      loop_enabled?: boolean
+    },
   ) =>
     request<Video>(`/videos/${videoId}/replay`, {
       method: 'PATCH',

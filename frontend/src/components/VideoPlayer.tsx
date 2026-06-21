@@ -18,14 +18,20 @@ declare global {
 
 export interface VideoPlayerHandle {
   getCurrentTime: () => number
-  seekTo: (seconds: number) => void
-  playSegment: (startSeconds: number, durationSeconds: number) => void
+  seekTo: (seconds: number, options?: { loopFromMoment?: boolean }) => void
+  playSegment: (
+    startSeconds: number,
+    durationSeconds: number,
+    options?: { loop?: boolean; onEnd?: () => void },
+  ) => void
   cancelSegmentPlayback: () => void
+  stopMomentSequence: () => void
 }
 
 interface VideoPlayerProps {
   videoId: string | null
   startAtSeconds?: number | null
+  playbackRate?: number
   onVideoChange?: (videoId: string) => void
   onMarkMoment?: () => void
   markingDisabled?: boolean
@@ -58,12 +64,11 @@ function loadYouTubeApi(): Promise<void> {
   return apiReadyPromise
 }
 
-const PLAYBACK_RATES = [0.5, 0.75, 1, 1.25, 1.5, 2]
-
 export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(function VideoPlayer(
   {
     videoId,
     startAtSeconds = null,
+    playbackRate = 1,
     onVideoChange,
     onMarkMoment,
     markingDisabled = false,
@@ -80,7 +85,11 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
   const pendingStartRef = useRef<number | null>(startAtSeconds)
   const hideControlsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const segmentTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const [playbackRate, setPlaybackRate] = useState(1)
+  const segmentLoopRef = useRef(false)
+  const segmentOnEndRef = useRef<(() => void) | null>(null)
+  const segmentStartRef = useRef(0)
+  const segmentDurationRef = useRef(0)
+  const momentLoopStartRef = useRef<number | null>(null)
   const [playerError, setPlayerError] = useState<string | null>(null)
   const [mountKey, setMountKey] = useState(0)
   const [isFullscreen, setIsFullscreen] = useState(false)
@@ -99,6 +108,10 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
       clearTimeout(segmentTimerRef.current)
       segmentTimerRef.current = null
     }
+  }, [])
+
+  const clearMomentLoop = useCallback(() => {
+    momentLoopStartRef.current = null
   }, [])
 
   const scheduleHideControls = useCallback(() => {
@@ -132,32 +145,73 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
     })
   }, [clearHideControlsTimer, isPlaying, scheduleHideControls])
 
+  const runSegmentPlayback = useCallback(() => {
+    if (!playerRef.current || !readyRef.current) return
+
+    playerRef.current.seekTo(segmentStartRef.current, true)
+    playerRef.current.playVideo()
+    setControlsVisible(true)
+
+    clearSegmentTimer()
+    segmentTimerRef.current = setTimeout(() => {
+      if (segmentLoopRef.current) {
+        runSegmentPlayback()
+        return
+      }
+
+      playerRef.current?.pauseVideo()
+      setIsPlaying(false)
+      setControlsVisible(true)
+
+      const onEnd = segmentOnEndRef.current
+      segmentOnEndRef.current = null
+      onEnd?.()
+    }, segmentDurationRef.current * 1000)
+  }, [clearSegmentTimer])
+
+  const stopSegmentPlayback = useCallback(() => {
+    clearSegmentTimer()
+    segmentLoopRef.current = false
+    segmentOnEndRef.current = null
+    clearMomentLoop()
+  }, [clearMomentLoop, clearSegmentTimer])
+
   useImperativeHandle(ref, () => ({
     getCurrentTime: () => {
       const value = playerRef.current?.getCurrentTime?.()
       return typeof value === 'number' && Number.isFinite(value) ? Math.floor(value) : 0
     },
-    seekTo: (seconds: number) => {
-      clearSegmentTimer()
+    seekTo: (seconds: number, options?: { loopFromMoment?: boolean }) => {
+      stopSegmentPlayback()
+      if (options?.loopFromMoment) {
+        momentLoopStartRef.current = seconds
+      } else {
+        clearMomentLoop()
+      }
       if (!playerRef.current || !readyRef.current) return
       playerRef.current.seekTo(seconds, true)
       playerRef.current.playVideo()
       showControls(true)
     },
-    playSegment: (startSeconds: number, durationSeconds: number) => {
-      clearSegmentTimer()
+    playSegment: (
+      startSeconds: number,
+      durationSeconds: number,
+      options?: { loop?: boolean; onEnd?: () => void },
+    ) => {
+      stopSegmentPlayback()
       if (!playerRef.current || !readyRef.current) return
-      playerRef.current.seekTo(startSeconds, true)
-      playerRef.current.playVideo()
-      showControls(true)
-      segmentTimerRef.current = setTimeout(() => {
-        playerRef.current?.pauseVideo()
-        setIsPlaying(false)
-        showControls(false)
-      }, durationSeconds * 1000)
+
+      segmentStartRef.current = startSeconds
+      segmentDurationRef.current = durationSeconds
+      segmentLoopRef.current = options?.loop ?? false
+      segmentOnEndRef.current = options?.onEnd ?? null
+      runSegmentPlayback()
     },
     cancelSegmentPlayback: () => {
-      clearSegmentTimer()
+      stopSegmentPlayback()
+    },
+    stopMomentSequence: () => {
+      stopSegmentPlayback()
     },
   }))
 
@@ -173,9 +227,14 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
   useEffect(() => {
     return () => {
       clearHideControlsTimer()
-      clearSegmentTimer()
+      stopSegmentPlayback()
     }
-  }, [clearHideControlsTimer, clearSegmentTimer])
+  }, [clearHideControlsTimer, stopSegmentPlayback])
+
+  useEffect(() => {
+    if (!playerRef.current || !readyRef.current) return
+    playerRef.current.setPlaybackRate(playbackRate)
+  }, [playbackRate, mountKey])
 
   const loadVideo = (rawId: string | null, startSeconds: number | null = null) => {
     const id = normalizeYouTubeVideoId(rawId)
@@ -194,6 +253,9 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
     if (current === id && startSeconds == null) return
 
     clearSegmentTimer()
+    segmentLoopRef.current = false
+    segmentOnEndRef.current = null
+    clearMomentLoop()
 
     if (startSeconds != null && startSeconds >= 0) {
       playerRef.current.loadVideoById({ videoId: id, startSeconds })
@@ -226,6 +288,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
         events: {
           onReady: (event) => {
             readyRef.current = true
+            event.target.setPlaybackRate(playbackRate)
             if (pendingVideoRef.current) {
               const start = pendingStartRef.current
               if (start != null && start >= 0) {
@@ -249,10 +312,21 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
               scheduleHideControls()
             }
 
-            if (paused || event.data === window.YT.PlayerState.ENDED) {
+            if (paused) {
               setIsPlaying(false)
               clearHideControlsTimer()
               setControlsVisible(true)
+            }
+
+            if (event.data === window.YT.PlayerState.ENDED) {
+              setIsPlaying(false)
+              clearHideControlsTimer()
+              setControlsVisible(true)
+
+              if (momentLoopStartRef.current != null) {
+                event.target.seekTo(momentLoopStartRef.current, true)
+                event.target.playVideo()
+              }
             }
           },
           onError: (event) => {
@@ -283,12 +357,6 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
   useEffect(() => {
     loadVideo(videoId, startAtSeconds)
   }, [videoId, startAtSeconds])
-
-  const handleRateChange = (rate: number) => {
-    setPlaybackRate(rate)
-    playerRef.current?.setPlaybackRate(rate)
-    showControls(true)
-  }
 
   const handleFullscreen = async () => {
     const shell = shellRef.current
@@ -378,23 +446,6 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
       >
         <div className="border-t border-slate-800 px-4 py-3">
           <div className="flex flex-wrap items-center gap-3">
-            <label className="text-sm font-medium text-slate-200" htmlFor="playback-rate">
-              Velocidade
-            </label>
-            <select
-              id="playback-rate"
-              data-testid="playback-rate"
-              className="rounded-lg border border-slate-600 bg-slate-900 px-3 py-2 text-base text-white"
-              value={playbackRate}
-              onChange={(e) => handleRateChange(Number(e.target.value))}
-            >
-              {PLAYBACK_RATES.map((rate) => (
-                <option key={rate} value={rate}>
-                  {rate}x
-                </option>
-              ))}
-            </select>
-
             {onMarkMoment && (
               <button
                 type="button"

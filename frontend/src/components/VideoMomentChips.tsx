@@ -17,12 +17,12 @@ export function VideoMomentChips({
   if (moments.length === 0) return null
 
   return (
-    <div className="mt-2 flex flex-wrap gap-1.5" data-testid="video-moments">
+    <div className="mt-2 flex flex-wrap gap-2" data-testid="video-moments">
       {moments.map((moment) => {
         const label = moment.label?.trim()
         const timeLabel = formatDuration(moment.position_seconds)
         return (
-          <span key={moment.id} className="inline-flex items-center gap-0.5">
+          <span key={moment.id} className="inline-flex items-center gap-1">
             <button
               type="button"
               data-testid="video-moment-chip"
@@ -30,7 +30,7 @@ export function VideoMomentChips({
                 event.stopPropagation()
                 onPlayMoment(moment)
               }}
-              className={`rounded-full px-2 py-0.5 text-xs font-medium tabular-nums transition ${
+              className={`min-h-9 rounded-full px-3 py-1.5 text-sm font-medium tabular-nums transition ${
                 isActive
                   ? 'bg-yellow-300 text-yellow-950 hover:bg-yellow-200'
                   : 'bg-slate-700 text-slate-100 hover:bg-slate-600'
@@ -48,7 +48,7 @@ export function VideoMomentChips({
                   event.stopPropagation()
                   onDeleteMoment(moment)
                 }}
-                className={`rounded-full px-1 text-xs ${
+                className={`flex h-9 w-9 items-center justify-center rounded-full text-base ${
                   isActive ? 'text-yellow-800 hover:bg-yellow-200' : 'text-slate-400 hover:bg-slate-700'
                 }`}
               >

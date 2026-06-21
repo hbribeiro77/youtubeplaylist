@@ -17,6 +17,7 @@ const sampleVideo: Video = {
   moments: [],
   replay_enabled: false,
   replay_duration_seconds: 5,
+  loop_enabled: false,
 }
 
 describe('VideoCard', () => {
@@ -28,6 +29,7 @@ describe('VideoCard', () => {
         onSelect={vi.fn()}
         onPlayMoment={vi.fn()}
         onReplayChange={vi.fn()}
+        onLoopChange={vi.fn()}
         onReplayDurationChange={vi.fn()}
       />,
     )
@@ -45,6 +47,7 @@ describe('VideoCard', () => {
         onSelect={vi.fn()}
         onPlayMoment={vi.fn()}
         onReplayChange={vi.fn()}
+        onLoopChange={vi.fn()}
         onReplayDurationChange={vi.fn()}
       />,
     )
@@ -59,10 +62,26 @@ describe('VideoCard', () => {
         onSelect={vi.fn()}
         onPlayMoment={vi.fn()}
         onReplayChange={vi.fn()}
+        onLoopChange={vi.fn()}
         onReplayDurationChange={vi.fn()}
       />,
     )
     expect(screen.getByTestId('replay-checkbox')).toBeChecked()
     expect(screen.getByTestId('replay-duration-select')).toHaveValue('8')
+  })
+
+  it('shows loop checkbox when enabled', () => {
+    render(
+      <VideoCard
+        video={{ ...sampleVideo, loop_enabled: true }}
+        isActive={false}
+        onSelect={vi.fn()}
+        onPlayMoment={vi.fn()}
+        onReplayChange={vi.fn()}
+        onLoopChange={vi.fn()}
+        onReplayDurationChange={vi.fn()}
+      />,
+    )
+    expect(screen.getByTestId('loop-checkbox')).toBeChecked()
   })
 })
