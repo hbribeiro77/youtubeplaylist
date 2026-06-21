@@ -96,7 +96,7 @@ export function PlaylistView({ playlist, onBack }: PlaylistViewProps) {
   }
 
   return (
-    <div className="mx-auto flex min-h-screen w-full max-w-7xl flex-col">
+    <div className="mx-auto flex min-h-screen w-full max-w-[96rem] flex-col">
       <header className="flex items-center gap-2 border-b border-slate-800 px-3 py-3">
         <button
           type="button"
@@ -120,7 +120,7 @@ export function PlaylistView({ playlist, onBack }: PlaylistViewProps) {
 
       <div className="flex flex-1 flex-col md:min-h-[calc(100vh-57px)] md:flex-row">
         <aside
-          className="md:sticky md:top-[57px] md:flex md:h-[calc(100vh-57px)] md:w-[34%] md:shrink-0 md:flex-col md:border-r md:border-slate-800 lg:w-[30%]"
+          className="md:sticky md:top-[57px] md:flex md:h-[calc(100vh-57px)] md:min-w-0 md:w-[62%] md:shrink-0 md:flex-col md:border-r md:border-slate-800 lg:w-[65%]"
           data-testid="player-column"
         >
           <VideoPlayer
@@ -130,22 +130,24 @@ export function PlaylistView({ playlist, onBack }: PlaylistViewProps) {
             onVideoChange={setActiveVideoId}
             onMarkMoment={handleMarkMoment}
             markingDisabled={markingMoment || !activeVideo}
+            toolbarExtra={
+              activeVideo && (activeVideo.moments?.length ?? 0) > 0 ? (
+                <div>
+                  <p className="mb-2 text-sm font-medium text-slate-200">Momentos deste vídeo</p>
+                  <VideoMomentChips
+                    moments={activeVideo.moments}
+                    isActive
+                    onPlayMoment={(moment) => handlePlayMoment(activeVideo, moment)}
+                    onDeleteMoment={(moment) => handleDeleteMoment(activeVideo, moment)}
+                  />
+                </div>
+              ) : undefined
+            }
           />
-          {activeVideo && (activeVideo.moments?.length ?? 0) > 0 && (
-            <div className="border-b border-slate-800 px-3 py-2">
-              <p className="mb-1 text-xs text-slate-400">Momentos deste vídeo</p>
-              <VideoMomentChips
-                moments={activeVideo.moments}
-                isActive
-                onPlayMoment={(moment) => handlePlayMoment(activeVideo, moment)}
-                onDeleteMoment={(moment) => handleDeleteMoment(activeVideo, moment)}
-              />
-            </div>
-          )}
         </aside>
 
         <main
-          className="flex min-w-0 flex-1 flex-col md:max-h-[calc(100vh-57px)] md:overflow-hidden"
+          className="flex min-w-0 flex-col md:max-h-[calc(100vh-57px)] md:w-[38%] md:overflow-hidden lg:w-[35%]"
           data-testid="videos-column"
         >
           <SearchBar onSearch={handleSearch} />

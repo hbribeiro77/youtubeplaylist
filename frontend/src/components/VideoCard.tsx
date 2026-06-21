@@ -29,14 +29,14 @@ export function VideoCard({
       type="button"
       data-testid={isActive ? 'video-card-active' : 'video-card'}
       onClick={() => onSelect(video)}
-      className={`flex w-full gap-3 rounded-xl p-3 text-left transition ${
+      className={`flex w-full gap-2 rounded-xl p-2.5 text-left transition md:gap-2.5 md:p-3 ${
         isActive
           ? 'bg-yellow-50 text-slate-900 ring-2 ring-yellow-400'
           : 'bg-slate-900 text-slate-100 hover:bg-slate-800'
       }`}
     >
       <span
-        className={`w-8 shrink-0 pt-1 text-right text-sm font-semibold tabular-nums ${
+        className={`w-7 shrink-0 pt-0.5 text-right text-xs font-semibold tabular-nums md:w-8 md:text-sm ${
           isActive ? 'text-yellow-700' : 'text-slate-500'
         }`}
         aria-label={`Vídeo ${displayNumber}`}
@@ -47,7 +47,7 @@ export function VideoCard({
         <img
           src={video.thumbnail_url}
           alt={video.title}
-          className="h-20 w-36 rounded-lg object-cover"
+          className="h-14 w-24 rounded-lg object-cover md:h-16 md:w-28"
         />
         <span className="absolute bottom-1 right-1 rounded bg-black/80 px-1 text-xs text-white">
           {formatDuration(video.duration_seconds)}
@@ -56,13 +56,13 @@ export function VideoCard({
       <div className="min-w-0 flex-1">
         {titleHtml ? (
           <h3
-            className="line-clamp-2 font-semibold"
+            className="line-clamp-2 text-sm font-semibold md:text-base"
             dangerouslySetInnerHTML={titleHtml}
           />
         ) : (
-          <h3 className="line-clamp-2 font-semibold">{video.title}</h3>
+          <h3 className="line-clamp-2 text-sm font-semibold md:text-base">{video.title}</h3>
         )}
-        <p className={`mt-1 line-clamp-2 text-sm ${isActive ? 'text-slate-600' : 'text-slate-400'}`}>
+        <p className={`mt-1 line-clamp-1 text-xs md:line-clamp-2 md:text-sm ${isActive ? 'text-slate-600' : 'text-slate-400'}`}>
           {video.description || 'Sem descrição'}
         </p>
         <span

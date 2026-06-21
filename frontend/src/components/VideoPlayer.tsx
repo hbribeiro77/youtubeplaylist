@@ -1,4 +1,11 @@
-import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react'
+import {
+  forwardRef,
+  useEffect,
+  useImperativeHandle,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react'
 import { isValidYouTubeVideoId, normalizeYouTubeVideoId } from '../utils/youtubeVideoId'
 
 declare global {
@@ -19,6 +26,7 @@ interface VideoPlayerProps {
   onVideoChange?: (videoId: string) => void
   onMarkMoment?: () => void
   markingDisabled?: boolean
+  toolbarExtra?: ReactNode
   className?: string
 }
 
@@ -55,10 +63,12 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
     onVideoChange,
     onMarkMoment,
     markingDisabled = false,
+    toolbarExtra,
     className = '',
   },
   ref,
 ) {
+  const shellRef = useRef<HTMLDivElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const playerRef = useRef<YT.Player | null>(null)
   const readyRef = useRef(false)
@@ -67,6 +77,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
   const [playbackRate, setPlaybackRate] = useState(1)
   const [playerError, setPlayerError] = useState<string | null>(null)
   const [mountKey, setMountKey] = useState(0)
+  const [isFullscreen, setIsFullscreen] = useState(false)
 
   useImperativeHandle(ref, () => ({
     getCurrentTime: () => {
@@ -79,6 +90,15 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
       playerRef.current.playVideo()
     },
   }))
+
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(document.fullscreenElement === shellRef.current)
+    }
+
+    document.addEventListener('fullscreenchange', handleFullscreenChange)
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange)
+  }, [])
 
   const loadVideo = (rawId: string | null, startSeconds: number | null = null) => {
     const id = normalizeYouTubeVideoId(rawId)
@@ -121,6 +141,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
           rel: 0,
           modestbranding: 1,
           enablejsapi: 1,
+          fs: 0,
           origin: window.location.origin,
         },
         events: {
@@ -178,9 +199,19 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
     playerRef.current?.setPlaybackRate(rate)
   }
 
-  const handleFullscreen = () => {
-    const iframe = containerRef.current?.querySelector('iframe')
-    iframe?.requestFullscreen?.()
+  const handleFullscreen = async () => {
+    const shell = shellRef.current
+    if (!shell) return
+
+    try {
+      if (document.fullscreenElement === shell) {
+        await document.exitFullscreen()
+      } else {
+        await shell.requestFullscreen()
+      }
+    } catch {
+      // Alguns browsers bloqueiam fullscreen fora de gesto do usuário.
+    }
   }
 
   const handleRetry = () => {
@@ -192,60 +223,83 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
 
   return (
     <div
-      className={`sticky top-0 z-20 bg-slate-950 md:static md:z-auto ${className}`}
+      ref={shellRef}
+      className={`sticky top-0 z-20 flex w-full flex-col bg-black md:static md:z-auto md:min-h-0 md:flex-1 ${
+        isFullscreen ? 'h-screen justify-center' : ''
+      } ${className}`}
       data-testid="video-player"
     >
-      <div className="relative aspect-video w-full bg-black">
-        <div ref={containerRef} id="player" className="h-full w-full" />
+      <div
+        className={`relative w-full bg-black ${
+          isFullscreen ? 'flex min-h-0 flex-1 flex-col' : 'aspect-video'
+        }`}
+      >
+        <div
+          ref={containerRef}
+          id="player"
+          className={`w-full ${isFullscreen ? 'min-h-0 flex-1' : 'h-full'}`}
+        />
+
         {playerError && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/80 p-4 text-center text-sm text-white">
+          <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 bg-black/80 p-4 text-center text-sm text-white">
             <p>{playerError}</p>
             <button
               type="button"
-              className="rounded bg-yellow-400 px-3 py-1 text-slate-900"
+              className="rounded-lg bg-yellow-400 px-4 py-2 text-base font-medium text-slate-900"
               onClick={handleRetry}
             >
               Tentar novamente
             </button>
           </div>
         )}
-      </div>
-      <div className="flex flex-wrap items-center gap-2 border-b border-slate-800 px-3 py-2">
-        <label className="text-xs text-slate-300" htmlFor="playback-rate">
-          Velocidade
-        </label>
-        <select
-          id="playback-rate"
-          data-testid="playback-rate"
-          className="rounded bg-slate-800 px-2 py-1 text-sm"
-          value={playbackRate}
-          onChange={(e) => handleRateChange(Number(e.target.value))}
-        >
-          {PLAYBACK_RATES.map((rate) => (
-            <option key={rate} value={rate}>
-              {rate}x
-            </option>
-          ))}
-        </select>
-        {onMarkMoment && (
-          <button
-            type="button"
-            data-testid="mark-moment-button"
-            disabled={markingDisabled || !videoId}
-            onClick={onMarkMoment}
-            className="rounded bg-yellow-400 px-3 py-1 text-sm font-medium text-slate-900 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            Marcar momento
-          </button>
-        )}
-        <button
-          type="button"
-          data-testid="fullscreen-button"
-          className="ml-auto rounded bg-slate-800 px-3 py-1 text-sm"
-          onClick={handleFullscreen}
-        >
-          Tela cheia
-        </button>
+
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-black via-black/80 to-transparent px-4 pb-4 pt-16">
+          <div className="pointer-events-auto flex flex-wrap items-center gap-3">
+            <label className="text-sm font-medium text-slate-200" htmlFor="playback-rate">
+              Velocidade
+            </label>
+            <select
+              id="playback-rate"
+              data-testid="playback-rate"
+              className="rounded-lg border border-slate-600 bg-slate-900 px-3 py-2 text-base text-white"
+              value={playbackRate}
+              onChange={(e) => handleRateChange(Number(e.target.value))}
+            >
+              {PLAYBACK_RATES.map((rate) => (
+                <option key={rate} value={rate}>
+                  {rate}x
+                </option>
+              ))}
+            </select>
+
+            {onMarkMoment && (
+              <button
+                type="button"
+                data-testid="mark-moment-button"
+                disabled={markingDisabled || !videoId}
+                onClick={onMarkMoment}
+                className="rounded-lg bg-yellow-400 px-4 py-2 text-base font-semibold text-slate-900 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Marcar momento
+              </button>
+            )}
+
+            <button
+              type="button"
+              data-testid="fullscreen-button"
+              className="ml-auto rounded-lg border border-slate-600 bg-slate-900 px-4 py-2 text-base font-medium text-white"
+              onClick={handleFullscreen}
+            >
+              {isFullscreen ? 'Sair da tela cheia' : 'Tela cheia'}
+            </button>
+          </div>
+
+          {toolbarExtra && (
+            <div className="pointer-events-auto mt-3 border-t border-white/10 pt-3">
+              {toolbarExtra}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   )
