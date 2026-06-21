@@ -3,15 +3,24 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    container_name: youtubeplaylist
+    restart: unless-stopped
     ports:
-      - "8080:8080"
+      - "${PORT:-8080}:8080"
     environment:
-      APP_ENV: development
+      APP_ENV: production
       DATABASE_URL: sqlite:///./data/youtubeplaylist.db
       DEFAULT_PLAYLIST_ID: ${DEFAULT_PLAYLIST_ID:-}
       PORT: 8080
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:8080}
     volumes:
       - app-data:/app/backend/data
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
 
 volumes:
   app-data:

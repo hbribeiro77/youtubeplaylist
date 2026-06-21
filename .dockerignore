@@ -1,0 +1,29 @@
+# Git
+.git
+.gitignore
+
+# Python
+**/__pycache__
+**/.pytest_cache
+**/.venv
+**/venv
+backend/data
+
+# Node
+**/node_modules
+frontend/dist
+frontend/test-results
+frontend/playwright-report
+
+# Env e local
+.env
+*.db
+
+# IDE / OS
+.idea
+.vscode
+Thumbs.db
+.DS_Store
+
+# Docs de dev local
+repositorio.md

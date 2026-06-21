@@ -55,10 +55,51 @@ No celular (mesma rede Wi-Fi): `http://<IP-do-PC>:8080`
 .\scripts\run-smoke-tests.ps1
 ```
 
-## Docker
+## Docker / VPS
+
+### Build e run local
 
 ```powershell
-docker compose up --build
+docker compose up --build -d
 ```
 
-Serviço único em http://localhost:8080
+App em http://localhost:8080
+
+### Deploy na VPS (Linux)
+
+1. Clone o repositório na VPS:
+
+```bash
+git clone https://github.com/hbribeiro77/youtubeplaylist.git
+cd youtubeplaylist
+```
+
+2. (Opcional) Crie um `.env` na raiz:
+
+```bash
+cp .env.example .env
+# edite DEFAULT_PLAYLIST_ID se quiser playlist padrão
+```
+
+3. Suba o container:
+
+```bash
+docker compose up --build -d
+```
+
+4. Acesse `http://<IP-da-VPS>:8080`
+
+O SQLite fica persistido no volume Docker `app-data`. Para expor na porta 80/443, use um reverse proxy (Nginx/Caddy) apontando para `localhost:8080`.
+
+### Só com Docker (sem compose)
+
+```bash
+docker build -t youtubeplaylist .
+docker run -d \
+  --name youtubeplaylist \
+  -p 8080:8080 \
+  -v youtubeplaylist-data:/app/backend/data \
+  -e DEFAULT_PLAYLIST_ID= \
+  --restart unless-stopped \
+  youtubeplaylist
+```
