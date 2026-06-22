@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { Video } from '../api/client'
 import { buildPlaylistMomentQueue } from './buildPlaylistMomentQueue'
 import {
+  addVideosToSelection,
   countMomentsForVideos,
   filterVideosWithMoments,
   getVideosInPlaylistOrder,
@@ -51,5 +52,10 @@ describe('playlistVideoSelection', () => {
 
   it('counts moments for selected videos', () => {
     expect(countMomentsForVideos(videos, new Set([2, 3]))).toBe(2)
+  })
+
+  it('adds displayed videos to existing selection', () => {
+    const next = addVideosToSelection(new Set([1]), [videos[1], videos[2]])
+    expect([...next].sort()).toEqual([1, 2, 3])
   })
 })

@@ -19,3 +19,14 @@ export function countMomentsForVideos(
     .filter((video) => !selectedVideoIds || selectedVideoIds.has(video.id))
     .reduce((total, video) => total + (video.moments?.length ?? 0), 0)
 }
+
+export function addVideosToSelection(
+  currentSelection: ReadonlySet<number>,
+  videos: Video[],
+): Set<number> {
+  const next = new Set(currentSelection)
+  for (const video of videos) {
+    next.add(video.id)
+  }
+  return next
+}

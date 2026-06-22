@@ -9,6 +9,7 @@ import { VideoPlaybackControls } from './VideoPlaybackControls'
 import { VideoPlayer, type VideoPlayerHandle } from './VideoPlayer'
 import { buildPlaylistMomentQueue } from '../utils/buildPlaylistMomentQueue'
 import {
+  addVideosToSelection,
   countMomentsForVideos,
   filterVideosWithMoments,
   getVideosInPlaylistOrder,
@@ -252,6 +253,14 @@ export function PlaylistView({ playlist, onBack }: PlaylistViewProps) {
       }
       return next
     })
+  }
+
+  const handleSelectDisplayed = () => {
+    setSelectedVideoIds((current) => addVideosToSelection(current, displayedVideos))
+  }
+
+  const handleClearSelection = () => {
+    setSelectedVideoIds(new Set())
   }
 
   const handlePlaySelectedVideos = () => {
@@ -501,6 +510,26 @@ export function PlaylistView({ playlist, onBack }: PlaylistViewProps) {
               />
               Só com momentos
             </label>
+
+            <button
+              type="button"
+              data-testid="select-displayed-videos"
+              disabled={displayedVideos.length === 0}
+              onClick={handleSelectDisplayed}
+              className="rounded-lg border border-slate-600 bg-slate-900 px-3 py-1.5 text-sm text-slate-200 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Selecionar filtrados ({displayedVideos.length})
+            </button>
+
+            <button
+              type="button"
+              data-testid="clear-video-selection"
+              disabled={selectedVideoIds.size === 0}
+              onClick={handleClearSelection}
+              className="rounded-lg border border-slate-600 bg-slate-900 px-3 py-1.5 text-sm text-slate-200 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Limpar seleção
+            </button>
 
             <button
               type="button"
