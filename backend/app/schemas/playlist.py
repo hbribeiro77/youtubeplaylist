@@ -17,6 +17,7 @@ class PlaylistResponse(BaseModel):
     id: int
     youtube_playlist_id: str
     title: str
+    channel_name: str = ""
     is_default: bool
     last_synced_at: datetime | None
     video_count: int = 0

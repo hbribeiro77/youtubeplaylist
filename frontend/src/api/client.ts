@@ -4,6 +4,7 @@ export interface Playlist {
   id: number
   youtube_playlist_id: string
   title: string
+  channel_name: string
   is_default: boolean
   last_synced_at: string | null
   video_count: number
@@ -79,6 +80,8 @@ export const api = {
   getPlaylist: (id: number) => request<Playlist>(`/playlists/${id}`),
   syncPlaylist: (id: number) =>
     request<PlaylistSyncResult>(`/playlists/${id}/sync`, { method: 'POST' }),
+  deletePlaylist: (id: number) =>
+    request<void>(`/playlists/${id}`, { method: 'DELETE' }),
   listVideos: (playlistId: number, q?: string) => {
     const params = q ? `?q=${encodeURIComponent(q)}` : ''
     return request<Video[]>(`/playlists/${playlistId}/videos${params}`)

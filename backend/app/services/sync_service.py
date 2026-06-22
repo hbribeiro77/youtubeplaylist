@@ -36,12 +36,15 @@ class SyncService:
             playlist = Playlist(
                 youtube_playlist_id=youtube_playlist_id,
                 title=metadata.title,
+                channel_name=metadata.channel_name,
                 is_default=is_default,
             )
             db.add(playlist)
             db.flush()
         else:
             playlist.title = metadata.title
+            if metadata.channel_name:
+                playlist.channel_name = metadata.channel_name
             if is_default:
                 playlist.is_default = True
 

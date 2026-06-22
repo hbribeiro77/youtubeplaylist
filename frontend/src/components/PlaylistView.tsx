@@ -4,7 +4,6 @@ import { api, type Playlist, type Video, type VideoMoment } from '../api/client'
 import { PlaylistHome } from './PlaylistHome'
 import { SearchBar } from './SearchBar'
 import { VideoCard } from './VideoCard'
-import { VideoMomentChips } from './VideoMomentChips'
 import { VideoPlaybackControls } from './VideoPlaybackControls'
 import { VideoPlayer, type VideoPlayerHandle } from './VideoPlayer'
 import { buildPlaylistMomentQueue } from '../utils/buildPlaylistMomentQueue'
@@ -309,15 +308,6 @@ export function PlaylistView({ playlist, onBack }: PlaylistViewProps) {
     playMomentOnVideo(video, moment)
   }
 
-  const handlePlayMomentSequence = () => {
-    if (momentQueue.length === 0) return
-
-    stopVideoSequence()
-    momentQueueRef.current = momentQueue
-    setMomentSequenceActive(true)
-    playMomentSequenceAt(0)
-  }
-
   const handleMarkMoment = async () => {
     if (!activeVideo || !playerRef.current) return
 
@@ -456,56 +446,23 @@ export function PlaylistView({ playlist, onBack }: PlaylistViewProps) {
             onVideoEnded={handleVideoEnded}
             onMarkMoment={handleMarkMoment}
             markingDisabled={markingMoment || !activeVideo}
+            moments={activeVideo?.moments ?? []}
+            onPlayMoment={(moment) => {
+              if (activeVideo) handlePlayMoment(activeVideo, moment)
+            }}
+            onDeleteMoment={(moment) => {
+              if (activeVideo) void handleDeleteMoment(activeVideo, moment)
+            }}
             toolbarExtra={
-              <>
-                {activeVideo && (
-                  <VideoPlaybackControls
-                    video={activeVideo}
-                    variant="player"
-                    onReplayChange={handleReplayChange}
-                    onLoopCountChange={handleLoopCountChange}
-                    onReplayDurationChange={handleReplayDurationChange}
-                  />
-                )}
-
-                <div className="mt-3 flex flex-wrap items-center gap-2">
-                  {momentQueue.length > 0 && (
-                    <>
-                      <button
-                        type="button"
-                        data-testid="play-moment-sequence"
-                        disabled={momentSequenceActive}
-                        onClick={handlePlayMomentSequence}
-                        className="rounded-lg bg-emerald-500 px-4 py-2 text-sm font-semibold text-slate-900 disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        ▶ Momentos em sequência ({momentQueue.length})
-                      </button>
-                      {momentSequenceActive && (
-                        <button
-                          type="button"
-                          data-testid="stop-moment-sequence"
-                          onClick={stopMomentSequence}
-                          className="rounded-lg border border-slate-600 bg-slate-900 px-4 py-2 text-sm font-medium text-white"
-                        >
-                          Parar sequência
-                        </button>
-                      )}
-                    </>
-                  )}
-                </div>
-
-                {activeVideo && (activeVideo.moments?.length ?? 0) > 0 && (
-                  <div className="mt-3 border-t border-slate-800 pt-3">
-                    <p className="mb-2 text-sm font-medium text-slate-200">Momentos deste vídeo</p>
-                    <VideoMomentChips
-                      moments={activeVideo.moments}
-                      isActive
-                      onPlayMoment={(moment) => handlePlayMoment(activeVideo, moment)}
-                      onDeleteMoment={(moment) => handleDeleteMoment(activeVideo, moment)}
-                    />
-                  </div>
-                )}
-              </>
+              activeVideo ? (
+                <VideoPlaybackControls
+                  video={activeVideo}
+                  variant="player"
+                  onReplayChange={handleReplayChange}
+                  onLoopCountChange={handleLoopCountChange}
+                  onReplayDurationChange={handleReplayDurationChange}
+                />
+              ) : null
             }
           />
         </aside>

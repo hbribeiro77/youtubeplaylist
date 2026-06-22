@@ -80,6 +80,16 @@ def parse_entry_published_at(entry: dict[str, Any]) -> datetime | None:
     return None
 
 
+def parse_ytdlp_playlist_channel(info: dict[str, Any]) -> str:
+    channel_name = (
+        info.get("uploader")
+        or info.get("channel")
+        or info.get("playlist_uploader")
+        or ""
+    )
+    return str(channel_name).strip()
+
+
 def _thumbnail_from_entry(entry: dict[str, Any], video_id: str) -> str:
     thumbnails = entry.get("thumbnails") or []
     if thumbnails:
@@ -230,6 +240,7 @@ class YouTubeClient:
 
         title = info.get("title") or "Playlist"
         playlist_count = info.get("playlist_count")
+        channel_name = parse_ytdlp_playlist_channel(info)
         entries = materialize_ytdlp_entries(info.get("entries"))
         videos = parse_ytdlp_entries(entries)
 
@@ -259,7 +270,12 @@ class YouTubeClient:
             logger.warning("Playlist %s atingiu limite de %s vídeos", playlist_id, MAX_PLAYLIST_VIDEOS)
             videos = videos[:MAX_PLAYLIST_VIDEOS]
 
-        return YtPlaylistMetadata(title=title, videos=videos, playlist_count=playlist_count)
+        return YtPlaylistMetadata(
+            title=title,
+            videos=videos,
+            playlist_count=playlist_count,
+            channel_name=channel_name,
+        )
 
     def _fetch_with_ytdlp_paged(self, playlist_id: str, skip: int) -> list[YtVideoMetadata]:
         """Fallback: busca páginas adicionais quando a extração única parece truncada."""
@@ -332,6 +348,7 @@ class YouTubeClient:
     def _piped_fetch_instance(self, base: str, playlist_id: str) -> YtPlaylistMetadata:
         videos: list[YtVideoMetadata] = []
         title = "Playlist"
+        channel_name = ""
         nextpage: str | None = None
 
         with httpx.Client(timeout=60.0, follow_redirects=True) as client:
@@ -347,6 +364,7 @@ class YouTubeClient:
                 response.raise_for_status()
                 data = response.json()
                 title = data.get("name") or title
+                channel_name = channel_name or str(data.get("uploader") or "").strip()
 
                 for stream in data.get("relatedStreams") or []:
                     video_id = self._piped_stream_video_id(stream)
@@ -372,4 +390,4 @@ class YouTubeClient:
         if len(videos) >= MAX_PLAYLIST_VIDEOS:
             videos = videos[:MAX_PLAYLIST_VIDEOS]
 
-        return YtPlaylistMetadata(title=title, videos=videos)
+        return YtPlaylistMetadata(title=title, videos=videos, channel_name=channel_name)

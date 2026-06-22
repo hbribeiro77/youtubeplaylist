@@ -18,3 +18,4 @@ class YtPlaylistMetadata:
     title: str
     videos: list[YtVideoMetadata]
     playlist_count: int | None = None
+    channel_name: str = ""

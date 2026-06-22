@@ -21,6 +21,7 @@ class Playlist(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     youtube_playlist_id: Mapped[str] = mapped_column(String(64), unique=True, index=True)
     title: Mapped[str] = mapped_column(String(512), default="")
+    channel_name: Mapped[str] = mapped_column(String(512), default="")
     is_default: Mapped[bool] = mapped_column(Boolean, default=False)
     last_synced_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())

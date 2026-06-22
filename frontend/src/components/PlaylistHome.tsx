@@ -12,6 +12,7 @@ export function PlaylistHome({ onOpenPlaylist }: PlaylistHomeProps) {
   const [formError, setFormError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [syncingPlaylistId, setSyncingPlaylistId] = useState<number | null>(null)
+  const [deletingPlaylistId, setDeletingPlaylistId] = useState<number | null>(null)
   const [syncMessages, setSyncMessages] = useState<Record<number, string>>({})
   const [clearingNews, setClearingNews] = useState(false)
   const queryClient = useQueryClient()
@@ -58,6 +59,28 @@ export function PlaylistHome({ onOpenPlaylist }: PlaylistHomeProps) {
       }))
     } finally {
       setSyncingPlaylistId(null)
+    }
+  }
+
+  const handleDelete = async (playlist: Playlist) => {
+    const confirmed = window.confirm(
+      `Excluir a playlist "${playlist.title}"? Os vídeos e momentos salvos localmente serão removidos.`,
+    )
+    if (!confirmed) return
+
+    setDeletingPlaylistId(playlist.id)
+    try {
+      await api.deletePlaylist(playlist.id)
+      await queryClient.invalidateQueries({ queryKey: ['playlists'] })
+      setSyncMessages((current) => {
+        const next = { ...current }
+        delete next[playlist.id]
+        return next
+      })
+    } catch (err) {
+      window.alert((err as Error).message)
+    } finally {
+      setDeletingPlaylistId(null)
     }
   }
 
@@ -116,9 +139,11 @@ export function PlaylistHome({ onOpenPlaylist }: PlaylistHomeProps) {
                 key={playlist.id}
                 playlist={playlist}
                 syncing={syncingPlaylistId === playlist.id}
+                deleting={deletingPlaylistId === playlist.id}
                 lastSyncMessage={syncMessages[playlist.id] ?? null}
                 onSelect={onOpenPlaylist}
                 onSync={handleSync}
+                onDelete={handleDelete}
               />
             ))}
           </div>

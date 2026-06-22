@@ -11,6 +11,9 @@ import {
 } from 'react'
 import { isValidYouTubeVideoId, normalizeYouTubeVideoId } from '../utils/youtubeVideoId'
 import { hasSegmentReachedEnd } from '../utils/videoSegmentPlayback'
+import { formatDuration } from '../utils/formatDuration'
+import type { VideoMoment } from '../api/client'
+import { VideoMomentChips } from './VideoMomentChips'
 import {
   clampSeekPosition,
   doubleTapTiming,
@@ -46,6 +49,9 @@ interface VideoPlayerProps {
   onVideoChange?: (videoId: string) => void
   onMarkMoment?: () => void
   markingDisabled?: boolean
+  moments?: VideoMoment[]
+  onPlayMoment?: (moment: VideoMoment) => void
+  onDeleteMoment?: (moment: VideoMoment) => void
   toolbarExtra?: ReactNode
   className?: string
   onVideoEnded?: () => void
@@ -84,6 +90,9 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
     onVideoChange,
     onMarkMoment,
     markingDisabled = false,
+    moments = [],
+    onPlayMoment,
+    onDeleteMoment,
     toolbarExtra,
     className = '',
     onVideoEnded,
@@ -113,6 +122,14 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
   const [seekHintSide, setSeekHintSide] = useState<'left' | 'right'>('right')
   const [mountKey, setMountKey] = useState(0)
   const [isFullscreen, setIsFullscreen] = useState(false)
+  const [playbackTime, setPlaybackTime] = useState(0)
+  const [duration, setDuration] = useState(0)
+  const [isScrubbing, setIsScrubbing] = useState(false)
+  const isScrubbingRef = useRef(false)
+
+  useEffect(() => {
+    isScrubbingRef.current = isScrubbing
+  }, [isScrubbing])
 
   const clearSegmentWatch = useCallback(() => {
     if (segmentWatchRef.current) {
@@ -186,6 +203,41 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
     clearMomentLoop()
   }, [clearMomentLoop, clearSegmentWatch])
 
+  const handleScrub = useCallback(
+    (value: number) => {
+      stopSegmentPlayback()
+      setPlaybackTime(value)
+      if (!playerRef.current || !readyRef.current) return
+      playerRef.current.seekTo(value, true)
+    },
+    [stopSegmentPlayback],
+  )
+
+  useEffect(() => {
+    if (!videoId) {
+      setPlaybackTime(0)
+      setDuration(0)
+      return
+    }
+
+    const tick = () => {
+      if (isScrubbingRef.current || !playerRef.current || !readyRef.current) return
+
+      const current = playerRef.current.getCurrentTime?.()
+      const total = playerRef.current.getDuration?.()
+      if (typeof current === 'number' && Number.isFinite(current)) {
+        setPlaybackTime(current)
+      }
+      if (typeof total === 'number' && Number.isFinite(total) && total > 0) {
+        setDuration(total)
+      }
+    }
+
+    tick()
+    const intervalId = window.setInterval(tick, 200)
+    return () => window.clearInterval(intervalId)
+  }, [videoId, mountKey])
+
   const clearSingleTapTimer = useCallback(() => {
     if (singleTapTimerRef.current) {
       clearTimeout(singleTapTimerRef.current)
@@ -218,6 +270,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
 
       playerRef.current.seekTo(next, true)
       playerRef.current.playVideo()
+      setPlaybackTime(next)
       showSeekHint(deltaSeconds)
     },
     [showSeekHint, stopSegmentPlayback],
@@ -432,6 +485,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
           rel: 0,
           modestbranding: 1,
           enablejsapi: 1,
+          controls: 0,
           fs: 0,
           origin: window.location.origin,
         },
@@ -539,7 +593,9 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
         <div
           ref={containerRef}
           id="player"
-          className={`w-full ${isFullscreen ? 'min-h-0 flex-1' : 'h-full'}`}
+          className={`w-full [&_iframe]:pointer-events-none ${
+            isFullscreen ? 'min-h-0 flex-1' : 'h-full'
+          }`}
         />
 
         {!videoId && !playerError && (
@@ -555,7 +611,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
           <div
             ref={tapOverlayRef}
             data-testid="video-tap-overlay"
-            className="absolute inset-x-0 top-0 bottom-16 z-10 touch-manipulation"
+            className="absolute inset-0 z-10 touch-manipulation"
             onPointerUp={handleTapOverlay}
             onDoubleClick={handleDoubleClick}
             aria-hidden
@@ -589,23 +645,57 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
 
       <div className="bg-black" data-testid="video-player-controls">
         <div className="border-t border-slate-800 px-4 py-3">
-          <div className="flex flex-wrap items-center gap-3">
+          {videoId && !playerError && (
+            <div className="mb-3" data-testid="video-progress-bar">
+              <div className="mb-1 flex items-center justify-between text-xs tabular-nums text-slate-400">
+                <span>{formatDuration(Math.floor(playbackTime))}</span>
+                <span>{formatDuration(Math.floor(duration))}</span>
+              </div>
+              <input
+                type="range"
+                data-testid="video-progress-scrubber"
+                min={0}
+                max={Math.max(duration, 0)}
+                step={0.1}
+                value={Math.min(playbackTime, duration || playbackTime)}
+                disabled={duration <= 0}
+                onPointerDown={() => setIsScrubbing(true)}
+                onPointerUp={() => setIsScrubbing(false)}
+                onPointerCancel={() => setIsScrubbing(false)}
+                onChange={(event) => handleScrub(Number(event.target.value))}
+                className="h-4 w-full touch-manipulation accent-yellow-400 disabled:opacity-40"
+                aria-label="Barra de progresso do vídeo"
+              />
+            </div>
+          )}
+
+          <div className="flex flex-wrap items-center gap-2 md:gap-3">
             {onMarkMoment && (
               <button
                 type="button"
                 data-testid="mark-moment-button"
                 disabled={markingDisabled || !videoId}
                 onClick={onMarkMoment}
-                className="rounded-lg bg-yellow-400 px-4 py-2 text-base font-semibold text-slate-900 disabled:cursor-not-allowed disabled:opacity-50"
+                className="shrink-0 rounded-lg bg-yellow-400 px-3 py-2 text-sm font-semibold text-slate-900 disabled:cursor-not-allowed disabled:opacity-50 md:px-4 md:text-base"
               >
                 Marcar momento
               </button>
             )}
 
+            {onPlayMoment && moments.length > 0 && (
+              <VideoMomentChips
+                moments={moments}
+                isActive
+                layout="inline"
+                onPlayMoment={onPlayMoment}
+                onDeleteMoment={onDeleteMoment}
+              />
+            )}
+
             <button
               type="button"
               data-testid="fullscreen-button"
-              className="ml-auto rounded-lg border border-slate-600 bg-slate-900 px-4 py-2 text-base font-medium text-white"
+              className="ml-auto shrink-0 rounded-lg border border-slate-600 bg-slate-900 px-3 py-2 text-sm font-medium text-white md:px-4 md:text-base"
               onClick={handleFullscreen}
             >
               {isFullscreen ? 'Sair da tela cheia' : 'Tela cheia'}

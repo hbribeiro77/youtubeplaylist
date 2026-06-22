@@ -3,9 +3,11 @@ import type { Playlist, PlaylistSyncResult } from '../api/client'
 interface PlaylistLibraryCardProps {
   playlist: Playlist
   syncing?: boolean
+  deleting?: boolean
   lastSyncMessage?: string | null
   onSelect: (playlist: Playlist) => void
   onSync: (playlist: Playlist) => void
+  onDelete: (playlist: Playlist) => void
 }
 
 function formatSyncedAt(value: string | null): string {
@@ -18,9 +20,11 @@ function formatSyncedAt(value: string | null): string {
 export function PlaylistLibraryCard({
   playlist,
   syncing = false,
+  deleting = false,
   lastSyncMessage = null,
   onSelect,
   onSync,
+  onDelete,
 }: PlaylistLibraryCardProps) {
   return (
     <div
@@ -50,6 +54,11 @@ export function PlaylistLibraryCard({
             )}
           </div>
         </div>
+        {playlist.channel_name && (
+          <p className="mt-1 text-sm text-slate-300" data-testid="playlist-channel-name">
+            {playlist.channel_name}
+          </p>
+        )}
         <p className="mt-2 text-sm text-slate-400">
           {playlist.video_count} vídeo{playlist.video_count === 1 ? '' : 's'}
         </p>
@@ -61,15 +70,26 @@ export function PlaylistLibraryCard({
         )}
       </button>
 
-      <button
-        type="button"
-        data-testid="playlist-sync-button"
-        disabled={syncing}
-        onClick={() => onSync(playlist)}
-        className="shrink-0 self-start rounded-lg border border-slate-600 bg-slate-800 px-3 py-2 text-sm text-slate-200 disabled:opacity-60"
-      >
-        {syncing ? '...' : 'Sync'}
-      </button>
+      <div className="flex shrink-0 flex-col gap-2 self-start">
+        <button
+          type="button"
+          data-testid="playlist-sync-button"
+          disabled={syncing || deleting}
+          onClick={() => onSync(playlist)}
+          className="rounded-lg border border-slate-600 bg-slate-800 px-3 py-2 text-sm text-slate-200 disabled:opacity-60"
+        >
+          {syncing ? '...' : 'Sync'}
+        </button>
+        <button
+          type="button"
+          data-testid="playlist-delete-button"
+          disabled={syncing || deleting}
+          onClick={() => onDelete(playlist)}
+          className="rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-300 disabled:opacity-60"
+        >
+          {deleting ? '...' : 'Excluir'}
+        </button>
+      </div>
     </div>
   )
 }

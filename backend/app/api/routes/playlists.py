@@ -31,6 +31,7 @@ def _to_response(playlist: Playlist, db: Session) -> PlaylistResponse:
         id=playlist.id,
         youtube_playlist_id=playlist.youtube_playlist_id,
         title=playlist.title,
+        channel_name=playlist.channel_name or "",
         is_default=playlist.is_default,
         last_synced_at=playlist.last_synced_at,
         video_count=count,
@@ -91,6 +92,15 @@ def get_playlist(playlist_id: int, db: Session = Depends(get_db)) -> PlaylistRes
     if playlist is None:
         raise HTTPException(status_code=404, detail="Playlist não encontrada")
     return _to_response(playlist, db)
+
+
+@router.delete("/{playlist_id}", status_code=204)
+def delete_playlist(playlist_id: int, db: Session = Depends(get_db)) -> None:
+    playlist = db.query(Playlist).filter(Playlist.id == playlist_id).first()
+    if playlist is None:
+        raise HTTPException(status_code=404, detail="Playlist não encontrada")
+    db.delete(playlist)
+    db.commit()
 
 
 @router.post("/{playlist_id}/sync", response_model=PlaylistSyncResponse)

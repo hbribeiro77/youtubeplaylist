@@ -145,6 +145,24 @@ def find_continuation_token(data: dict[str, Any]) -> str | None:
     return walk(data)
 
 
+def extract_playlist_channel_name(data: dict[str, Any]) -> str:
+    legacy_header = data.get("header", {}).get("playlistHeaderRenderer", {})
+    owner_runs = legacy_header.get("ownerText", {}).get("runs", [])
+    if owner_runs:
+        text = owner_runs[0].get("text") or owner_runs[0].get("simpleText")
+        if text:
+            return str(text).strip()
+
+    metadata_renderer = data.get("metadata", {}).get("playlistMetadataRenderer", {})
+    owner_runs = metadata_renderer.get("ownerText", {}).get("runs", [])
+    if owner_runs:
+        text = owner_runs[0].get("text") or owner_runs[0].get("simpleText")
+        if text:
+            return str(text).strip()
+
+    return ""
+
+
 def extract_playlist_title_and_count(data: dict[str, Any]) -> tuple[str, int | None]:
     metadata_renderer = data.get("metadata", {}).get("playlistMetadataRenderer", {})
     page_header = data.get("header", {}).get("pageHeaderRenderer", {})
@@ -210,6 +228,7 @@ class InnertubePlaylistClient:
             initial_data = extract_ytinitial_data(html)
             ytcfg = extract_ytcfg(html)
             title, playlist_count = extract_playlist_title_and_count(initial_data)
+            channel_name = extract_playlist_channel_name(initial_data)
 
             videos = self._collect_videos(client, ytcfg, initial_data)
             if not videos:
@@ -221,7 +240,12 @@ class InnertubePlaylistClient:
                 len(videos),
                 playlist_count,
             )
-            return YtPlaylistMetadata(title=title, videos=videos, playlist_count=playlist_count)
+            return YtPlaylistMetadata(
+                title=title,
+                videos=videos,
+                playlist_count=playlist_count,
+                channel_name=channel_name,
+            )
 
     def _collect_videos(
         self,

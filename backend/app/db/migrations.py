@@ -77,3 +77,16 @@ def run_sqlite_migrations(engine) -> None:
                     "ADD COLUMN published_at DATETIME"
                 )
             )
+
+        playlist_columns = {
+            row[1]
+            for row in connection.execute(text("PRAGMA table_info(playlists)")).fetchall()
+        }
+
+        if "channel_name" not in playlist_columns:
+            connection.execute(
+                text(
+                    "ALTER TABLE playlists "
+                    "ADD COLUMN channel_name VARCHAR(512) NOT NULL DEFAULT ''"
+                )
+            )
