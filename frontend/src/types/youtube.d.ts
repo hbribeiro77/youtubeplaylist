@@ -37,6 +37,7 @@ declare namespace YT {
     seekTo(seconds: number, allowSeekAhead: boolean): void
     getCurrentTime(): number
     getDuration(): number
+    getPlayerState(): number
     setPlaybackRate(rate: number): void
     getVideoData(): { video_id: string }
     destroy(): void

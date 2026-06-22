@@ -15,6 +15,12 @@ import {
   type PlaybackRate,
   PLAYBACK_RATES,
 } from '../utils/globalPlaybackRate'
+import {
+  DOUBLE_TAP_SEEK_OPTIONS,
+  loadGlobalDoubleTapSeekSeconds,
+  saveGlobalDoubleTapSeekSeconds,
+  type DoubleTapSeekSeconds,
+} from '../utils/globalDoubleTapSeek'
 
 interface PlaylistViewProps {
   playlist: Playlist
@@ -44,6 +50,9 @@ export function PlaylistView({ playlist, onBack }: PlaylistViewProps) {
   const [momentSequenceActive, setMomentSequenceActive] = useState(false)
   const [globalPlaybackRate, setGlobalPlaybackRate] = useState<PlaybackRate>(() =>
     loadGlobalPlaybackRate(),
+  )
+  const [doubleTapSeekSeconds, setDoubleTapSeekSeconds] = useState<DoubleTapSeekSeconds>(() =>
+    loadGlobalDoubleTapSeekSeconds(),
   )
   const cardRefs = useRef<Record<string, HTMLButtonElement | null>>({})
   const playerRef = useRef<VideoPlayerHandle>(null)
@@ -244,6 +253,11 @@ export function PlaylistView({ playlist, onBack }: PlaylistViewProps) {
     saveGlobalPlaybackRate(rate)
   }
 
+  const handleDoubleTapSeekChange = (seconds: DoubleTapSeekSeconds) => {
+    setDoubleTapSeekSeconds(seconds)
+    saveGlobalDoubleTapSeekSeconds(seconds)
+  }
+
   const handleSync = async () => {
     setSyncing(true)
     try {
@@ -284,6 +298,23 @@ export function PlaylistView({ playlist, onBack }: PlaylistViewProps) {
             ))}
           </select>
         </label>
+        <label className="flex shrink-0 items-center gap-2 text-sm text-slate-200">
+          <span className="hidden sm:inline">Toque 2x</span>
+          <select
+            data-testid="global-double-tap-seek"
+            className="rounded-lg border border-slate-600 bg-slate-900 px-2 py-1.5 text-sm text-white"
+            value={doubleTapSeekSeconds}
+            onChange={(event) =>
+              handleDoubleTapSeekChange(Number(event.target.value) as DoubleTapSeekSeconds)
+            }
+          >
+            {DOUBLE_TAP_SEEK_OPTIONS.map((seconds) => (
+              <option key={seconds} value={seconds}>
+                {seconds}s
+              </option>
+            ))}
+          </select>
+        </label>
         <button
           type="button"
           data-testid="sync-playlist"
@@ -305,6 +336,7 @@ export function PlaylistView({ playlist, onBack }: PlaylistViewProps) {
             videoId={activeVideoId}
             startAtSeconds={startAtSeconds}
             playbackRate={globalPlaybackRate}
+            doubleTapSeekSeconds={doubleTapSeekSeconds}
             onVideoChange={setActiveVideoId}
             onMarkMoment={handleMarkMoment}
             markingDisabled={markingMoment || !activeVideo}

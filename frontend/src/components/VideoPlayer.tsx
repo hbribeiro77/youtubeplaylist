@@ -5,10 +5,19 @@ import {
   useImperativeHandle,
   useRef,
   useState,
+  type PointerEvent,
+  type MouseEvent,
   type ReactNode,
 } from 'react'
 import { isValidYouTubeVideoId, normalizeYouTubeVideoId } from '../utils/youtubeVideoId'
 import { hasSegmentReachedEnd } from '../utils/videoSegmentPlayback'
+import {
+  clampSeekPosition,
+  doubleTapTiming,
+  formatDoubleTapSeekHint,
+  getDoubleTapSeekDelta,
+  getDoubleTapSeekDirection,
+} from '../utils/globalDoubleTapSeek'
 
 declare global {
   interface Window {
@@ -33,6 +42,7 @@ interface VideoPlayerProps {
   videoId: string | null
   startAtSeconds?: number | null
   playbackRate?: number
+  doubleTapSeekSeconds?: number
   onVideoChange?: (videoId: string) => void
   onMarkMoment?: () => void
   markingDisabled?: boolean
@@ -69,6 +79,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
     videoId,
     startAtSeconds = null,
     playbackRate = 1,
+    doubleTapSeekSeconds = 10,
     onVideoChange,
     onMarkMoment,
     markingDisabled = false,
@@ -91,7 +102,13 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
   const segmentDurationRef = useRef(0)
   const handleSegmentEndRef = useRef<() => void>(() => {})
   const momentLoopStartRef = useRef<number | null>(null)
+  const tapOverlayRef = useRef<HTMLDivElement>(null)
+  const lastTapRef = useRef<{ time: number; x: number } | null>(null)
+  const singleTapTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const seekHintTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [playerError, setPlayerError] = useState<string | null>(null)
+  const [seekHint, setSeekHint] = useState<string | null>(null)
+  const [seekHintSide, setSeekHintSide] = useState<'left' | 'right'>('right')
   const [mountKey, setMountKey] = useState(0)
   const [isFullscreen, setIsFullscreen] = useState(false)
 
@@ -166,6 +183,141 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
     segmentOnEndRef.current = null
     clearMomentLoop()
   }, [clearMomentLoop, clearSegmentWatch])
+
+  const clearSingleTapTimer = useCallback(() => {
+    if (singleTapTimerRef.current) {
+      clearTimeout(singleTapTimerRef.current)
+      singleTapTimerRef.current = null
+    }
+  }, [])
+
+  const showSeekHint = useCallback((deltaSeconds: number) => {
+    if (seekHintTimerRef.current) {
+      clearTimeout(seekHintTimerRef.current)
+    }
+
+    setSeekHintSide(deltaSeconds > 0 ? 'right' : 'left')
+    setSeekHint(formatDoubleTapSeekHint(deltaSeconds))
+
+    seekHintTimerRef.current = setTimeout(() => {
+      setSeekHint(null)
+      seekHintTimerRef.current = null
+    }, 700)
+  }, [])
+
+  const seekRelative = useCallback(
+    (deltaSeconds: number) => {
+      stopSegmentPlayback()
+      if (!playerRef.current || !readyRef.current) return
+
+      const current = playerRef.current.getCurrentTime?.() ?? 0
+      const duration = playerRef.current.getDuration?.() ?? 0
+      const next = clampSeekPosition(current, duration, deltaSeconds)
+
+      playerRef.current.seekTo(next, true)
+      playerRef.current.playVideo()
+      showSeekHint(deltaSeconds)
+    },
+    [showSeekHint, stopSegmentPlayback],
+  )
+
+  const togglePlayPause = useCallback(() => {
+    if (!playerRef.current || !readyRef.current) return
+
+    const state = playerRef.current.getPlayerState?.()
+    if (state === window.YT.PlayerState.PLAYING) {
+      playerRef.current.pauseVideo()
+      return
+    }
+
+    playerRef.current.playVideo()
+  }, [])
+
+  const handleMouseClick = useCallback(() => {
+      if (playerError) return
+
+      lastTapRef.current = null
+      clearSingleTapTimer()
+      singleTapTimerRef.current = setTimeout(() => {
+        togglePlayPause()
+      }, doubleTapTiming.singleTapDelayMs)
+  }, [clearSingleTapTimer, playerError, togglePlayPause])
+
+  const handleTouchTap = useCallback(
+    (event: PointerEvent<HTMLDivElement>) => {
+      if (playerError) return
+
+      const overlay = tapOverlayRef.current
+      if (!overlay) return
+
+      const rect = overlay.getBoundingClientRect()
+      const tapX = event.clientX - rect.left
+      const now = Date.now()
+      const lastTap = lastTapRef.current
+
+      if (
+        lastTap &&
+        now - lastTap.time <= doubleTapTiming.doubleTapWindowMs &&
+        Math.abs(tapX - lastTap.x) <= 80
+      ) {
+        clearSingleTapTimer()
+        lastTapRef.current = null
+
+        const direction = getDoubleTapSeekDirection(tapX, rect.width)
+        const delta = getDoubleTapSeekDelta(direction, doubleTapSeekSeconds)
+        seekRelative(delta)
+        return
+      }
+
+      lastTapRef.current = { time: now, x: tapX }
+      clearSingleTapTimer()
+      singleTapTimerRef.current = setTimeout(() => {
+        lastTapRef.current = null
+        togglePlayPause()
+      }, doubleTapTiming.singleTapDelayMs)
+    },
+    [clearSingleTapTimer, doubleTapSeekSeconds, playerError, seekRelative, togglePlayPause],
+  )
+
+  const handleTapOverlay = useCallback(
+    (event: PointerEvent<HTMLDivElement>) => {
+      if (event.pointerType === 'touch') {
+        handleTouchTap(event)
+        return
+      }
+
+      handleMouseClick()
+    },
+    [handleMouseClick, handleTouchTap],
+  )
+
+  const handleDoubleClick = useCallback(
+    (event: MouseEvent<HTMLDivElement>) => {
+      if (playerError) return
+
+      const overlay = tapOverlayRef.current
+      if (!overlay) return
+
+      clearSingleTapTimer()
+      lastTapRef.current = null
+
+      const rect = overlay.getBoundingClientRect()
+      const tapX = event.clientX - rect.left
+      const direction = getDoubleTapSeekDirection(tapX, rect.width)
+      const delta = getDoubleTapSeekDelta(direction, doubleTapSeekSeconds)
+      seekRelative(delta)
+    },
+    [clearSingleTapTimer, doubleTapSeekSeconds, playerError, seekRelative],
+  )
+
+  useEffect(() => {
+    return () => {
+      clearSingleTapTimer()
+      if (seekHintTimerRef.current) {
+        clearTimeout(seekHintTimerRef.current)
+      }
+    }
+  }, [clearSingleTapTimer])
 
   useImperativeHandle(ref, () => ({
     getCurrentTime: () => {
@@ -376,8 +528,32 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
         <div
           ref={containerRef}
           id="player"
-          className={`w-full ${isFullscreen ? 'min-h-0 flex-1' : 'h-full'}`}
+          className={`w-full [&_iframe]:pointer-events-none ${
+            isFullscreen ? 'min-h-0 flex-1' : 'h-full'
+          }`}
         />
+
+        {!playerError && (
+          <div
+            ref={tapOverlayRef}
+            data-testid="video-tap-overlay"
+            className="absolute inset-0 z-10 touch-manipulation"
+            onPointerUp={handleTapOverlay}
+            onDoubleClick={handleDoubleClick}
+            aria-hidden
+          />
+        )}
+
+        {seekHint && (
+          <div
+            data-testid="video-seek-hint"
+            className={`pointer-events-none absolute top-1/2 z-20 -translate-y-1/2 rounded-full bg-black/75 px-4 py-2 text-lg font-semibold text-white ${
+              seekHintSide === 'right' ? 'right-8' : 'left-8'
+            }`}
+          >
+            {seekHint}
+          </div>
+        )}
 
         {playerError && (
           <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 bg-black/80 p-4 text-center text-sm text-white">
