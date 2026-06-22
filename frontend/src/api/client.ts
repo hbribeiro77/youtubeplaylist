@@ -30,6 +30,7 @@ export interface Video {
   loop_enabled: boolean
   loop_count: number
   is_new: boolean
+  published_at: string | null
   moments: VideoMoment[]
 }
 
@@ -104,5 +105,7 @@ export const api = {
     }),
   acknowledgeNewVideo: (videoId: number) =>
     request<Video>(`/videos/${videoId}/acknowledge-new`, { method: 'PATCH' }),
+  acknowledgeAllNewVideos: () =>
+    request<{ cleared_count: number }>('/playlists/acknowledge-all-new', { method: 'POST' }),
   seedTestData: () => request<{ playlist_id: number; seed_term: string }>('/test/seed', { method: 'POST' }),
 }

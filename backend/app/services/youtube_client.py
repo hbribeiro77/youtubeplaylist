@@ -1,5 +1,6 @@
 import logging
 import re
+from datetime import datetime, timezone
 from typing import Any
 
 import httpx
@@ -57,6 +58,28 @@ def playlist_fetch_looks_truncated(metadata: YtPlaylistMetadata) -> bool:
     return got in (PLAYLIST_PAGE_SIZE, PLAYLIST_PAGE_SIZE + 1)
 
 
+def parse_entry_published_at(entry: dict[str, Any]) -> datetime | None:
+    timestamp = entry.get("timestamp") or entry.get("release_timestamp")
+    if isinstance(timestamp, (int, float)) and timestamp > 0:
+        return datetime.fromtimestamp(timestamp, tz=timezone.utc).replace(tzinfo=None)
+
+    upload_date = entry.get("upload_date")
+    if isinstance(upload_date, str) and len(upload_date) == 8 and upload_date.isdigit():
+        try:
+            return datetime.strptime(upload_date, "%Y%m%d")
+        except ValueError:
+            return None
+
+    uploaded = entry.get("uploaded")
+    if isinstance(uploaded, (int, float)) and uploaded > 0:
+        value = int(uploaded)
+        if value > 10_000_000_000:
+            value //= 1000
+        return datetime.fromtimestamp(value, tz=timezone.utc).replace(tzinfo=None)
+
+    return None
+
+
 def _thumbnail_from_entry(entry: dict[str, Any], video_id: str) -> str:
     thumbnails = entry.get("thumbnails") or []
     if thumbnails:
@@ -80,6 +103,7 @@ def parse_ytdlp_entries(entries: list[Any]) -> list[YtVideoMetadata]:
                 duration_seconds=int(entry.get("duration") or 0),
                 thumbnail_url=_thumbnail_from_entry(entry, video_id),
                 tags=list(entry.get("tags") or []),
+                published_at=parse_entry_published_at(entry),
             )
         )
     return videos
@@ -337,6 +361,7 @@ class YouTubeClient:
                             thumbnail_url=stream.get("thumbnail")
                             or f"https://i.ytimg.com/vi/{video_id}/mqdefault.jpg",
                             tags=[],
+                            published_at=parse_entry_published_at(stream),
                         )
                     )
 

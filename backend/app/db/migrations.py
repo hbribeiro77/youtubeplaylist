@@ -69,3 +69,11 @@ def run_sqlite_migrations(engine) -> None:
                     "ADD COLUMN is_new BOOLEAN NOT NULL DEFAULT 0"
                 )
             )
+
+        if "published_at" not in columns:
+            connection.execute(
+                text(
+                    "ALTER TABLE videos "
+                    "ADD COLUMN published_at DATETIME"
+                )
+            )

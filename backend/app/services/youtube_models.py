@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from datetime import datetime
 
 
 @dataclass
@@ -9,6 +10,7 @@ class YtVideoMetadata:
     duration_seconds: int
     thumbnail_url: str
     tags: list[str]
+    published_at: datetime | None = None
 
 
 @dataclass

@@ -25,6 +25,7 @@ function makeVideo(id: number, position: number, moments: Video['moments']): Vid
     loop_enabled: false,
     loop_count: 0,
     is_new: false,
+    published_at: null,
     moments,
   }
 }

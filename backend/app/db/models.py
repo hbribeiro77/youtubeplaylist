@@ -48,6 +48,7 @@ class Video(Base):
     loop_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
     loop_count: Mapped[int] = mapped_column(Integer, default=0)
     is_new: Mapped[bool] = mapped_column(Boolean, default=False)
+    published_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
     playlist: Mapped["Playlist"] = relationship(back_populates="videos")
     transcript: Mapped["Transcript | None"] = relationship(

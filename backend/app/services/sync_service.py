@@ -68,6 +68,7 @@ class SyncService:
                     tags_json=tags,
                     transcript_status=TranscriptStatus.pending,
                     is_new=True,
+                    published_at=item.published_at,
                 )
                 db.add(video)
                 db.flush()
@@ -79,6 +80,8 @@ class SyncService:
                 video.duration_seconds = item.duration_seconds
                 video.thumbnail_url = item.thumbnail_url
                 video.tags_json = tags
+                if item.published_at is not None:
+                    video.published_at = item.published_at
 
             transcript_text = video.transcript.text if video.transcript else ""
             rebuild_fts_for_video(

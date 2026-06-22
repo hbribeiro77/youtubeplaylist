@@ -21,6 +21,7 @@ const sampleVideo: Video = {
   loop_enabled: false,
   loop_count: 0,
   is_new: false,
+  published_at: '2024-03-15T12:00:00',
 }
 
 const baseProps = {
@@ -91,6 +92,18 @@ describe('VideoCard', () => {
     expect(screen.getByTestId('replay-duration-select')).toHaveValue('15')
     expect(screen.getByTestId('loop-count-select')).toHaveValue('3')
     expect(screen.getByTestId('video-select-checkbox')).toBeChecked()
+  })
+
+  it('shows published date when available', () => {
+    render(
+      <VideoCard
+        video={sampleVideo}
+        isActive={false}
+        isSelected={false}
+        {...baseProps}
+      />,
+    )
+    expect(screen.getByTestId('video-published-date')).toHaveTextContent('Publicado em')
   })
 
   it('shows novidade badge when video is new', () => {

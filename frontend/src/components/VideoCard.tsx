@@ -1,5 +1,5 @@
 import type { Video, VideoMoment } from '../api/client'
-import { formatDuration, highlightText, transcriptBadgeLabel } from '../utils/formatDuration'
+import { formatDuration, formatPublishedDate, highlightText, transcriptBadgeLabel } from '../utils/formatDuration'
 import { VideoMomentChips } from './VideoMomentChips'
 import { VideoPlaybackControls } from './VideoPlaybackControls'
 
@@ -34,6 +34,7 @@ export function VideoCard({
     ? { __html: highlightText(video.title, searchQuery) }
     : undefined
   const displayNumber = video.position + 1
+  const publishedLabel = formatPublishedDate(video.published_at)
 
   const cardShellClass = isActive
     ? 'ring-2 ring-yellow-400 bg-yellow-50'
@@ -123,6 +124,14 @@ export function VideoCard({
               />
             ) : (
               <h3 className="line-clamp-2 text-sm font-semibold md:text-base">{video.title}</h3>
+            )}
+            {publishedLabel && (
+              <p
+                data-testid="video-published-date"
+                className={`mt-1 text-xs ${isActive ? 'text-slate-500' : 'text-slate-500'}`}
+              >
+                Publicado em {publishedLabel}
+              </p>
             )}
             <p
               className={`mt-1 line-clamp-1 text-xs md:line-clamp-2 md:text-sm ${

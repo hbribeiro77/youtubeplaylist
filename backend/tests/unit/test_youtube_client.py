@@ -7,6 +7,7 @@ from app.services.youtube_client import (
     materialize_ytdlp_entries,
     merge_video_lists,
     normalize_video_id,
+    parse_entry_published_at,
     parse_ytdlp_entries,
     playlist_fetch_looks_truncated,
 )
@@ -25,6 +26,7 @@ def test_parse_ytdlp_flat_entries():
             "title": "Video 1",
             "duration": 120,
             "thumbnails": [{"url": "https://img/1.jpg"}],
+            "upload_date": "20240315",
         },
         {"id": "invalid", "title": "skip"},
     ]
@@ -33,6 +35,14 @@ def test_parse_ytdlp_flat_entries():
     assert videos[0].youtube_video_id == "6Y4mgeGf2xQ"
     assert videos[0].duration_seconds == 120
     assert videos[0].thumbnail_url == "https://img/1.jpg"
+    assert videos[0].published_at is not None
+    assert videos[0].published_at.year == 2024
+
+
+def test_parse_entry_published_at_from_timestamp():
+    published = parse_entry_published_at({"timestamp": 1_710_000_000})
+    assert published is not None
+    assert published.year == 2024
 
 
 def test_merge_video_lists_deduplicates():

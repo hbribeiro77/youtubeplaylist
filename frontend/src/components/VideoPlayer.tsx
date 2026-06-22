@@ -539,9 +539,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
         <div
           ref={containerRef}
           id="player"
-          className={`w-full [&_iframe]:pointer-events-none ${
-            isFullscreen ? 'min-h-0 flex-1' : 'h-full'
-          }`}
+          className={`w-full ${isFullscreen ? 'min-h-0 flex-1' : 'h-full'}`}
         />
 
         {!videoId && !playerError && (
@@ -557,7 +555,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
           <div
             ref={tapOverlayRef}
             data-testid="video-tap-overlay"
-            className="absolute inset-0 z-10 touch-manipulation"
+            className="absolute inset-x-0 top-0 bottom-16 z-10 touch-manipulation"
             onPointerUp={handleTapOverlay}
             onDoubleClick={handleDoubleClick}
             aria-hidden

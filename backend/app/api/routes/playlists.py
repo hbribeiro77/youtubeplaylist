@@ -5,6 +5,7 @@ from app.config import get_settings
 from app.db.models import Playlist, Video
 from app.db.session import get_db
 from app.schemas.playlist import (
+    AcknowledgeAllNewResponse,
     PlaylistCreate,
     PlaylistResponse,
     PlaylistSyncResponse,
@@ -46,6 +47,17 @@ def _to_sync_response(playlist: Playlist, db: Session, new_videos_added: int) ->
 def list_playlists(db: Session = Depends(get_db)) -> list[PlaylistResponse]:
     playlists = db.query(Playlist).order_by(Playlist.is_default.desc(), Playlist.id.asc()).all()
     return [_to_response(p, db) for p in playlists]
+
+
+@router.post("/acknowledge-all-new", response_model=AcknowledgeAllNewResponse)
+def acknowledge_all_new_videos(db: Session = Depends(get_db)) -> AcknowledgeAllNewResponse:
+    cleared_count = (
+        db.query(Video)
+        .filter(Video.is_new.is_(True))
+        .update({Video.is_new: False}, synchronize_session=False)
+    )
+    db.commit()
+    return AcknowledgeAllNewResponse(cleared_count=cleared_count)
 
 
 @router.post("", response_model=PlaylistSyncResponse, status_code=201)

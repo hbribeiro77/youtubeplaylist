@@ -50,6 +50,7 @@ def _to_video_response(video: Video) -> VideoResponse:
         loop_enabled=video.loop_enabled,
         loop_count=video.loop_count,
         is_new=video.is_new,
+        published_at=video.published_at,
         moments=[_moment_to_response(moment) for moment in video.moments],
     )
 

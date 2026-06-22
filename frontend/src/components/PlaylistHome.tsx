@@ -13,12 +13,15 @@ export function PlaylistHome({ onOpenPlaylist }: PlaylistHomeProps) {
   const [loading, setLoading] = useState(false)
   const [syncingPlaylistId, setSyncingPlaylistId] = useState<number | null>(null)
   const [syncMessages, setSyncMessages] = useState<Record<number, string>>({})
+  const [clearingNews, setClearingNews] = useState(false)
   const queryClient = useQueryClient()
 
   const { data: playlists = [], isLoading, error } = useQuery({
     queryKey: ['playlists'],
     queryFn: api.listPlaylists,
   })
+
+  const totalNewVideos = playlists.reduce((sum, playlist) => sum + playlist.new_video_count, 0)
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault()
@@ -58,6 +61,17 @@ export function PlaylistHome({ onOpenPlaylist }: PlaylistHomeProps) {
     }
   }
 
+  const handleClearAllNew = async () => {
+    setClearingNews(true)
+    try {
+      await api.acknowledgeAllNewVideos()
+      await queryClient.invalidateQueries({ queryKey: ['playlists'] })
+      await queryClient.invalidateQueries({ queryKey: ['videos'] })
+    } finally {
+      setClearingNews(false)
+    }
+  }
+
   return (
     <div className="mx-auto flex min-h-screen max-w-lg flex-col gap-6 px-4 py-6" data-testid="playlist-home">
       <div>
@@ -66,6 +80,28 @@ export function PlaylistHome({ onOpenPlaylist }: PlaylistHomeProps) {
           Abra uma playlist salva, sincronize novidades ou adicione uma nova pelo link do YouTube.
         </p>
       </div>
+
+      {totalNewVideos > 0 && (
+        <section
+          className="flex flex-wrap items-center gap-3 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3"
+          data-testid="global-new-videos-banner"
+        >
+          <p className="flex-1 text-sm text-emerald-200">
+            <span className="font-semibold text-emerald-100">{totalNewVideos}</span>{' '}
+            novidade{totalNewVideos === 1 ? '' : 's'} em {playlists.filter((p) => p.new_video_count > 0).length}{' '}
+            playlist{playlists.filter((p) => p.new_video_count > 0).length === 1 ? '' : 's'}
+          </p>
+          <button
+            type="button"
+            data-testid="clear-all-new-videos"
+            onClick={handleClearAllNew}
+            disabled={clearingNews}
+            className="rounded-lg border border-emerald-400/40 bg-emerald-500/20 px-3 py-2 text-sm font-medium text-emerald-100 disabled:opacity-60"
+          >
+            {clearingNews ? 'Limpando...' : 'Limpar novidades'}
+          </button>
+        </section>
+      )}
 
       {playlists.length > 0 && (
         <section className="flex flex-col gap-3">

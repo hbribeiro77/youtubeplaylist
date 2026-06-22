@@ -69,3 +69,18 @@ def test_playlist_list_includes_new_video_count(client, seed_playlist):
     assert response.status_code == 200
     item = next(entry for entry in response.json() if entry["id"] == playlist.id)
     assert "new_video_count" in item
+
+
+def test_acknowledge_all_new_clears_flags(client, seed_playlist, db_session):
+    from app.db.models import Video
+
+    for video in seed_playlist["videos"]:
+        video.is_new = True
+    db_session.commit()
+
+    response = client.post("/playlists/acknowledge-all-new")
+    assert response.status_code == 200
+    assert response.json()["cleared_count"] == 3
+
+    remaining = db_session.query(Video).filter(Video.is_new.is_(True)).count()
+    assert remaining == 0

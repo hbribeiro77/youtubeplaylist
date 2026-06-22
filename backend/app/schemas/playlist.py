@@ -29,6 +29,10 @@ class PlaylistSyncResponse(PlaylistResponse):
     new_videos_added: int = 0
 
 
+class AcknowledgeAllNewResponse(BaseModel):
+    cleared_count: int
+
+
 class VideoMomentResponse(BaseModel):
     id: int
     video_id: int
@@ -66,6 +70,7 @@ class VideoResponse(BaseModel):
     loop_enabled: bool = False
     loop_count: int = 0
     is_new: bool = False
+    published_at: datetime | None = None
     moments: list[VideoMomentResponse] = []
 
     model_config = {"from_attributes": True}
