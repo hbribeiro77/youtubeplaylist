@@ -41,5 +41,6 @@ declare namespace YT {
     setPlaybackRate(rate: number): void
     getVideoData(): { video_id: string }
     destroy(): void
+    stopVideo(): void
   }
 }

@@ -48,6 +48,7 @@ interface VideoPlayerProps {
   markingDisabled?: boolean
   toolbarExtra?: ReactNode
   className?: string
+  onVideoEnded?: () => void
 }
 
 let apiReadyPromise: Promise<void> | null = null
@@ -85,6 +86,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
     markingDisabled = false,
     toolbarExtra,
     className = '',
+    onVideoEnded,
   },
   ref,
 ) {
@@ -380,7 +382,13 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
   const loadVideo = (rawId: string | null, startSeconds: number | null = null) => {
     const id = normalizeYouTubeVideoId(rawId)
     if (!id) {
-      setPlayerError('ID de vídeo inválido')
+      setPlayerError(null)
+      pendingVideoRef.current = null
+      pendingStartRef.current = null
+      stopSegmentPlayback()
+      if (playerRef.current && readyRef.current) {
+        playerRef.current.stopVideo()
+      }
       return
     }
 
@@ -458,7 +466,10 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
               if (momentLoopStartRef.current != null) {
                 event.target.seekTo(momentLoopStartRef.current, true)
                 event.target.playVideo()
+                return
               }
+
+              onVideoEnded?.()
             }
           },
           onError: (event) => {
@@ -484,7 +495,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
         containerRef.current.innerHTML = ''
       }
     }
-  }, [mountKey, onVideoChange, playbackRate])
+  }, [mountKey, onVideoChange, onVideoEnded, playbackRate])
 
   useEffect(() => {
     loadVideo(videoId, startAtSeconds)
@@ -533,7 +544,16 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
           }`}
         />
 
-        {!playerError && (
+        {!videoId && !playerError && (
+          <div
+            data-testid="video-player-placeholder"
+            className="absolute inset-0 z-[5] flex items-center justify-center bg-black px-4 text-center text-sm text-slate-400"
+          >
+            Selecione um vídeo na lista para reproduzir
+          </div>
+        )}
+
+        {!playerError && videoId && (
           <div
             ref={tapOverlayRef}
             data-testid="video-tap-overlay"

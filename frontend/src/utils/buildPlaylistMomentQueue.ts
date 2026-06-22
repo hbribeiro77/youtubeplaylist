@@ -5,8 +5,12 @@ export interface PlaylistMomentItem {
   moment: VideoMoment
 }
 
-export function buildPlaylistMomentQueue(videos: Video[]): PlaylistMomentItem[] {
+export function buildPlaylistMomentQueue(
+  videos: Video[],
+  selectedVideoIds?: ReadonlySet<number>,
+): PlaylistMomentItem[] {
   return videos
+    .filter((video) => !selectedVideoIds || selectedVideoIds.has(video.id))
     .flatMap((video) =>
       (video.moments ?? []).map((moment) => ({ video, moment })),
     )

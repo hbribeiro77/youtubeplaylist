@@ -6,8 +6,10 @@ import { VideoPlaybackControls } from './VideoPlaybackControls'
 interface VideoCardProps {
   video: Video
   isActive: boolean
+  isSelected: boolean
   searchQuery?: string
   onSelect: (video: Video) => void
+  onSelectedChange: (video: Video, selected: boolean) => void
   onPlayMoment: (video: Video, moment: VideoMoment) => void
   onDeleteMoment?: (video: Video, moment: VideoMoment) => void
   onReplayChange: (video: Video, replayEnabled: boolean) => void
@@ -18,8 +20,10 @@ interface VideoCardProps {
 export function VideoCard({
   video,
   isActive,
+  isSelected,
   searchQuery = '',
   onSelect,
+  onSelectedChange,
   onPlayMoment,
   onDeleteMoment,
   onReplayChange,
@@ -37,16 +41,35 @@ export function VideoCard({
       className={`rounded-xl transition ${
         isActive
           ? 'bg-yellow-50 text-slate-900 ring-2 ring-yellow-400'
-          : 'bg-slate-900 text-slate-100'
+          : isSelected
+            ? 'bg-slate-800 text-slate-100 ring-2 ring-sky-500'
+            : 'bg-slate-900 text-slate-100'
       }`}
     >
-      <button
-        type="button"
-        onClick={() => onSelect(video)}
-        className={`flex w-full gap-2 rounded-t-xl p-2.5 text-left md:gap-2.5 md:p-3 ${
-          isActive ? 'hover:bg-yellow-100' : 'hover:bg-slate-800'
-        }`}
-      >
+      <div className="flex items-start gap-2 p-2.5 md:gap-2.5 md:p-3">
+        <label
+          className={`flex shrink-0 items-center pt-1 ${
+            isActive ? 'text-slate-700' : 'text-slate-300'
+          }`}
+          onClick={(event) => event.stopPropagation()}
+        >
+          <input
+            type="checkbox"
+            data-testid="video-select-checkbox"
+            checked={isSelected}
+            onChange={(event) => onSelectedChange(video, event.target.checked)}
+            className="h-4 w-4 rounded border-slate-500"
+            aria-label={`Selecionar ${video.title}`}
+          />
+        </label>
+
+        <button
+          type="button"
+          onClick={() => onSelect(video)}
+          className={`flex min-w-0 flex-1 gap-2 text-left md:gap-2.5 ${
+            isActive ? 'hover:opacity-90' : 'hover:opacity-90'
+          }`}
+        >
         <span
           className={`w-7 shrink-0 pt-0.5 text-right text-xs font-semibold tabular-nums md:w-8 md:text-sm ${
             isActive ? 'text-yellow-700' : 'text-slate-500'
@@ -95,7 +118,8 @@ export function VideoCard({
             onDeleteMoment={onDeleteMoment ? (moment) => onDeleteMoment(video, moment) : undefined}
           />
         </div>
-      </button>
+        </button>
+      </div>
 
       <div
         className={`border-t px-2.5 py-2 md:px-3 ${

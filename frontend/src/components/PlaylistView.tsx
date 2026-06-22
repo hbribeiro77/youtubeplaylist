@@ -9,6 +9,11 @@ import { VideoPlaybackControls } from './VideoPlaybackControls'
 import { VideoPlayer, type VideoPlayerHandle } from './VideoPlayer'
 import { buildPlaylistMomentQueue } from '../utils/buildPlaylistMomentQueue'
 import {
+  countMomentsForVideos,
+  filterVideosWithMoments,
+  getVideosInPlaylistOrder,
+} from '../utils/playlistVideoSelection'
+import {
   formatPlaybackRate,
   loadGlobalPlaybackRate,
   saveGlobalPlaybackRate,
@@ -48,6 +53,9 @@ export function PlaylistView({ playlist, onBack }: PlaylistViewProps) {
   const [syncing, setSyncing] = useState(false)
   const [markingMoment, setMarkingMoment] = useState(false)
   const [momentSequenceActive, setMomentSequenceActive] = useState(false)
+  const [videoSequenceActive, setVideoSequenceActive] = useState(false)
+  const [selectedVideoIds, setSelectedVideoIds] = useState<Set<number>>(() => new Set())
+  const [showOnlyWithMoments, setShowOnlyWithMoments] = useState(false)
   const [globalPlaybackRate, setGlobalPlaybackRate] = useState<PlaybackRate>(() =>
     loadGlobalPlaybackRate(),
   )
@@ -59,6 +67,7 @@ export function PlaylistView({ playlist, onBack }: PlaylistViewProps) {
   const pendingSegmentRef = useRef<PendingSegment | null>(null)
   const pendingMomentLoopRef = useRef<number | null>(null)
   const momentQueueRef = useRef<ReturnType<typeof buildPlaylistMomentQueue>>([])
+  const videoSequenceRef = useRef<string[]>([])
   const queryClient = useQueryClient()
 
   const { data: videos = [], isLoading, error } = useQuery({
@@ -68,13 +77,14 @@ export function PlaylistView({ playlist, onBack }: PlaylistViewProps) {
 
   const activeVideo = videos.find((video) => video.youtube_video_id === activeVideoId) ?? null
   const momentQueue = useMemo(() => buildPlaylistMomentQueue(videos), [videos])
-
-  useEffect(() => {
-    if (!activeVideoId && videos.length > 0) {
-      const firstId = videos[0].youtube_video_id?.trim()
-      if (firstId) setActiveVideoId(firstId)
-    }
-  }, [videos, activeVideoId])
+  const displayedVideos = useMemo(
+    () => (showOnlyWithMoments ? filterVideosWithMoments(videos) : videos),
+    [videos, showOnlyWithMoments],
+  )
+  const selectedMomentCount = useMemo(
+    () => countMomentsForVideos(videos, selectedVideoIds),
+    [videos, selectedVideoIds],
+  )
 
   useEffect(() => {
     if (!activeVideoId) return
@@ -114,11 +124,41 @@ export function PlaylistView({ playlist, onBack }: PlaylistViewProps) {
     setSearchQuery(query)
   }, [])
 
+  const stopVideoSequence = useCallback(() => {
+    videoSequenceRef.current = []
+    setVideoSequenceActive(false)
+  }, [])
+
   const stopMomentSequence = useCallback(() => {
     momentQueueRef.current = []
     setMomentSequenceActive(false)
     playerRef.current?.stopMomentSequence()
   }, [])
+
+  const stopAllSequences = useCallback(() => {
+    stopMomentSequence()
+    stopVideoSequence()
+  }, [stopMomentSequence, stopVideoSequence])
+
+  const handleVideoEnded = useCallback(() => {
+    if (!videoSequenceActive) return
+
+    const queue = videoSequenceRef.current
+    const currentId = activeVideoId?.trim()
+    if (!currentId) return
+
+    const index = queue.indexOf(currentId)
+    const nextId = queue[index + 1]
+    if (!nextId) {
+      stopVideoSequence()
+      return
+    }
+
+    pendingSegmentRef.current = null
+    pendingMomentLoopRef.current = null
+    setStartAtSeconds(null)
+    setActiveVideoId(nextId)
+  }, [activeVideoId, stopVideoSequence, videoSequenceActive])
 
   const playMomentOnVideo = useCallback(
     (video: Video, moment: VideoMoment, options?: PlayMomentOptions) => {
@@ -194,7 +234,7 @@ export function PlaylistView({ playlist, onBack }: PlaylistViewProps) {
   const handleSelect = (video: Video) => {
     const id = video.youtube_video_id?.trim()
     if (!id) return
-    stopMomentSequence()
+    stopAllSequences()
     playerRef.current?.cancelSegmentPlayback()
     pendingSegmentRef.current = null
     pendingMomentLoopRef.current = null
@@ -202,14 +242,56 @@ export function PlaylistView({ playlist, onBack }: PlaylistViewProps) {
     setActiveVideoId(id)
   }
 
-  const handlePlayMoment = (video: Video, moment: VideoMoment) => {
+  const handleSelectedChange = (video: Video, selected: boolean) => {
+    setSelectedVideoIds((current) => {
+      const next = new Set(current)
+      if (selected) {
+        next.add(video.id)
+      } else {
+        next.delete(video.id)
+      }
+      return next
+    })
+  }
+
+  const handlePlaySelectedVideos = () => {
+    const selected = getVideosInPlaylistOrder(videos, selectedVideoIds)
+    if (selected.length === 0) return
+
     stopMomentSequence()
+    const ids = selected
+      .map((video) => video.youtube_video_id?.trim())
+      .filter((id): id is string => Boolean(id))
+
+    if (ids.length === 0) return
+
+    videoSequenceRef.current = ids
+    setVideoSequenceActive(true)
+    pendingSegmentRef.current = null
+    pendingMomentLoopRef.current = null
+    setStartAtSeconds(null)
+    setActiveVideoId(ids[0])
+  }
+
+  const handlePlaySelectedMoments = () => {
+    const queue = buildPlaylistMomentQueue(videos, selectedVideoIds)
+    if (queue.length === 0) return
+
+    stopVideoSequence()
+    momentQueueRef.current = queue
+    setMomentSequenceActive(true)
+    playMomentSequenceAt(0)
+  }
+
+  const handlePlayMoment = (video: Video, moment: VideoMoment) => {
+    stopAllSequences()
     playMomentOnVideo(video, moment)
   }
 
   const handlePlayMomentSequence = () => {
     if (momentQueue.length === 0) return
 
+    stopVideoSequence()
     momentQueueRef.current = momentQueue
     setMomentSequenceActive(true)
     playMomentSequenceAt(0)
@@ -338,6 +420,7 @@ export function PlaylistView({ playlist, onBack }: PlaylistViewProps) {
             playbackRate={globalPlaybackRate}
             doubleTapSeekSeconds={doubleTapSeekSeconds}
             onVideoChange={setActiveVideoId}
+            onVideoEnded={handleVideoEnded}
             onMarkMoment={handleMarkMoment}
             markingDisabled={markingMoment || !activeVideo}
             toolbarExtra={
@@ -401,6 +484,64 @@ export function PlaylistView({ playlist, onBack }: PlaylistViewProps) {
           <SearchBar onSearch={handleSearch} />
 
           <div
+            className="flex flex-wrap items-center gap-2 border-b border-slate-800 px-3 py-2"
+            data-testid="video-list-toolbar"
+          >
+            <label className="flex items-center gap-2 text-sm text-slate-300">
+              <input
+                type="checkbox"
+                data-testid="filter-with-moments"
+                checked={showOnlyWithMoments}
+                onChange={(event) => setShowOnlyWithMoments(event.target.checked)}
+                className="h-4 w-4 rounded border-slate-500"
+              />
+              Só com momentos
+            </label>
+
+            <button
+              type="button"
+              data-testid="play-selected-videos"
+              disabled={selectedVideoIds.size === 0 || videoSequenceActive}
+              onClick={handlePlaySelectedVideos}
+              className="rounded-lg bg-sky-600 px-3 py-1.5 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              ▶ Selecionados ({selectedVideoIds.size})
+            </button>
+
+            <button
+              type="button"
+              data-testid="play-selected-moments"
+              disabled={selectedMomentCount === 0 || momentSequenceActive}
+              onClick={handlePlaySelectedMoments}
+              className="rounded-lg bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              ▶ Momentos ({selectedMomentCount})
+            </button>
+
+            {videoSequenceActive && (
+              <button
+                type="button"
+                data-testid="stop-video-sequence"
+                onClick={stopVideoSequence}
+                className="rounded-lg border border-slate-600 bg-slate-900 px-3 py-1.5 text-sm text-white"
+              >
+                Parar vídeos
+              </button>
+            )}
+
+            {momentSequenceActive && (
+              <button
+                type="button"
+                data-testid="stop-moment-sequence-list"
+                onClick={stopMomentSequence}
+                className="rounded-lg border border-slate-600 bg-slate-900 px-3 py-1.5 text-sm text-white"
+              >
+                Parar momentos
+              </button>
+            )}
+          </div>
+
+          <div
             className="flex flex-1 flex-col gap-3 overflow-y-auto px-3 pb-8 md:px-4"
             data-testid="video-list"
           >
@@ -409,14 +550,19 @@ export function PlaylistView({ playlist, onBack }: PlaylistViewProps) {
             {!isLoading && videos.length === 0 && (
               <p className="px-2 text-sm text-slate-400">Nenhum vídeo encontrado.</p>
             )}
+            {!isLoading && displayedVideos.length === 0 && videos.length > 0 && (
+              <p className="px-2 text-sm text-slate-400">Nenhum vídeo com momentos marcados.</p>
+            )}
             {!isLoading && videos.length > 0 && (
               <p className="px-2 text-xs text-slate-500">
+                {displayedVideos.length} exibido{displayedVideos.length === 1 ? '' : 's'} de{' '}
                 {videos.length} vídeo{videos.length === 1 ? '' : 's'}
                 {playlist.video_count > videos.length ? ` (playlist com ${playlist.video_count})` : ''}
-                {momentQueue.length > 0 ? ` · ${momentQueue.length} momentos marcados` : ''}
+                {selectedVideoIds.size > 0 ? ` · ${selectedVideoIds.size} selecionado${selectedVideoIds.size === 1 ? '' : 's'}` : ''}
+                {momentQueue.length > 0 ? ` · ${momentQueue.length} momentos na playlist` : ''}
               </p>
             )}
-            {videos.map((video) => (
+            {displayedVideos.map((video) => (
               <div
                 key={video.id}
                 ref={(el) => {
@@ -427,8 +573,10 @@ export function PlaylistView({ playlist, onBack }: PlaylistViewProps) {
                 <VideoCard
                   video={video}
                   isActive={video.youtube_video_id === activeVideoId}
+                  isSelected={selectedVideoIds.has(video.id)}
                   searchQuery={searchQuery}
                   onSelect={handleSelect}
+                  onSelectedChange={handleSelectedChange}
                   onPlayMoment={handlePlayMoment}
                   onDeleteMoment={handleDeleteMoment}
                   onReplayChange={handleReplayChange}

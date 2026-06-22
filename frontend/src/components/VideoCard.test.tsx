@@ -1,4 +1,5 @@
 import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { VideoCard } from '../components/VideoCard'
 import type { Video } from '../api/client'
@@ -21,17 +22,23 @@ const sampleVideo: Video = {
   loop_count: 0,
 }
 
+const baseProps = {
+  onSelect: vi.fn(),
+  onSelectedChange: vi.fn(),
+  onPlayMoment: vi.fn(),
+  onReplayChange: vi.fn(),
+  onLoopCountChange: vi.fn(),
+  onReplayDurationChange: vi.fn(),
+}
+
 describe('VideoCard', () => {
   it('renders thumbnail, title, duration and playlist number', () => {
     render(
       <VideoCard
         video={sampleVideo}
         isActive={false}
-        onSelect={vi.fn()}
-        onPlayMoment={vi.fn()}
-        onReplayChange={vi.fn()}
-        onLoopCountChange={vi.fn()}
-        onReplayDurationChange={vi.fn()}
+        isSelected={false}
+        {...baseProps}
       />,
     )
     expect(screen.getByText('Docker basics')).toBeInTheDocument()
@@ -45,14 +52,29 @@ describe('VideoCard', () => {
       <VideoCard
         video={sampleVideo}
         isActive
-        onSelect={vi.fn()}
-        onPlayMoment={vi.fn()}
-        onReplayChange={vi.fn()}
-        onLoopCountChange={vi.fn()}
-        onReplayDurationChange={vi.fn()}
+        isSelected={false}
+        {...baseProps}
       />,
     )
     expect(screen.getByTestId('video-card-active')).toHaveClass('ring-yellow-400')
+  })
+
+  it('shows selection checkbox and calls handler', async () => {
+    const user = userEvent.setup()
+    const onSelectedChange = vi.fn()
+
+    render(
+      <VideoCard
+        video={sampleVideo}
+        isActive={false}
+        isSelected={false}
+        {...baseProps}
+        onSelectedChange={onSelectedChange}
+      />,
+    )
+
+    await user.click(screen.getByTestId('video-select-checkbox'))
+    expect(onSelectedChange).toHaveBeenCalledWith(sampleVideo, true)
   })
 
   it('shows replay duration and loop selectors when replay is enabled', () => {
@@ -60,15 +82,13 @@ describe('VideoCard', () => {
       <VideoCard
         video={{ ...sampleVideo, replay_enabled: true, replay_duration_seconds: 15, loop_count: 3 }}
         isActive={false}
-        onSelect={vi.fn()}
-        onPlayMoment={vi.fn()}
-        onReplayChange={vi.fn()}
-        onLoopCountChange={vi.fn()}
-        onReplayDurationChange={vi.fn()}
+        isSelected
+        {...baseProps}
       />,
     )
     expect(screen.getByTestId('replay-checkbox')).toBeChecked()
     expect(screen.getByTestId('replay-duration-select')).toHaveValue('15')
     expect(screen.getByTestId('loop-count-select')).toHaveValue('3')
+    expect(screen.getByTestId('video-select-checkbox')).toBeChecked()
   })
 })
