@@ -20,8 +20,13 @@ class PlaylistResponse(BaseModel):
     is_default: bool
     last_synced_at: datetime | None
     video_count: int = 0
+    new_video_count: int = 0
 
     model_config = {"from_attributes": True}
+
+
+class PlaylistSyncResponse(PlaylistResponse):
+    new_videos_added: int = 0
 
 
 class VideoMomentResponse(BaseModel):
@@ -60,6 +65,7 @@ class VideoResponse(BaseModel):
     replay_duration_seconds: int = 5
     loop_enabled: bool = False
     loop_count: int = 0
+    is_new: bool = False
     moments: list[VideoMomentResponse] = []
 
     model_config = {"from_attributes": True}

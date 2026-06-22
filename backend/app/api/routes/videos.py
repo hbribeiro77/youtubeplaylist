@@ -49,6 +49,7 @@ def _to_video_response(video: Video) -> VideoResponse:
         replay_duration_seconds=video.replay_duration_seconds,
         loop_enabled=video.loop_enabled,
         loop_count=video.loop_count,
+        is_new=video.is_new,
         moments=[_moment_to_response(moment) for moment in video.moments],
     )
 
@@ -181,6 +182,23 @@ def update_video_replay_settings(
     if video.loop_count not in LOOP_COUNT_OPTIONS:
         video.loop_count = DEFAULT_LOOP_COUNT
 
+    db.commit()
+    db.refresh(video)
+    return _to_video_response(video)
+
+
+@router.patch("/videos/{video_id}/acknowledge-new", response_model=VideoResponse)
+def acknowledge_new_video(video_id: int, db: Session = Depends(get_db)) -> VideoResponse:
+    video = (
+        db.query(Video)
+        .options(joinedload(Video.moments))
+        .filter(Video.id == video_id)
+        .first()
+    )
+    if video is None:
+        raise HTTPException(status_code=404, detail="Vídeo não encontrado")
+
+    video.is_new = False
     db.commit()
     db.refresh(video)
     return _to_video_response(video)

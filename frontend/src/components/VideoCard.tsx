@@ -102,6 +102,20 @@ export function VideoCard({
           </div>
 
           <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              {video.is_new && (
+                <span
+                  data-testid="video-new-badge"
+                  className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+                    isActive
+                      ? 'bg-emerald-500 text-white'
+                      : 'bg-emerald-500/20 text-emerald-300'
+                  }`}
+                >
+                  Novidade
+                </span>
+              )}
+            </div>
             {titleHtml ? (
               <h3
                 className="line-clamp-2 text-sm font-semibold md:text-base"

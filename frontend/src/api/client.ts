@@ -7,6 +7,11 @@ export interface Playlist {
   is_default: boolean
   last_synced_at: string | null
   video_count: number
+  new_video_count: number
+}
+
+export interface PlaylistSyncResult extends Playlist {
+  new_videos_added: number
 }
 
 export interface Video {
@@ -24,6 +29,7 @@ export interface Video {
   replay_duration_seconds: number
   loop_enabled: boolean
   loop_count: number
+  is_new: boolean
   moments: VideoMoment[]
 }
 
@@ -65,13 +71,13 @@ export const api = {
   health: () => request<{ status: string }>('/health'),
   listPlaylists: () => request<Playlist[]>('/playlists'),
   createPlaylist: (url_or_id: string) =>
-    request<Playlist>('/playlists', {
+    request<PlaylistSyncResult>('/playlists', {
       method: 'POST',
       body: JSON.stringify({ url_or_id }),
     }),
   getPlaylist: (id: number) => request<Playlist>(`/playlists/${id}`),
   syncPlaylist: (id: number) =>
-    request<Playlist>(`/playlists/${id}/sync`, { method: 'POST' }),
+    request<PlaylistSyncResult>(`/playlists/${id}/sync`, { method: 'POST' }),
   listVideos: (playlistId: number, q?: string) => {
     const params = q ? `?q=${encodeURIComponent(q)}` : ''
     return request<Video[]>(`/playlists/${playlistId}/videos${params}`)
@@ -96,5 +102,7 @@ export const api = {
       method: 'PATCH',
       body: JSON.stringify(payload),
     }),
+  acknowledgeNewVideo: (videoId: number) =>
+    request<Video>(`/videos/${videoId}/acknowledge-new`, { method: 'PATCH' }),
   seedTestData: () => request<{ playlist_id: number; seed_term: string }>('/test/seed', { method: 'POST' }),
 }

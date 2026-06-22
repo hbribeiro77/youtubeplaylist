@@ -30,11 +30,11 @@ def search_videos(db: Session, playlist_id: int, query: str | None = None) -> li
             return []
         videos = db.query(Video).filter(Video.id.in_(video_ids)).all()
         order = {vid: idx for idx, vid in enumerate(video_ids)}
-        return sorted(videos, key=lambda v: order.get(v.id, 9999))
+        return sorted(videos, key=lambda v: (-int(v.is_new), order.get(v.id, 9999)))
 
     return (
         db.query(Video)
         .filter(Video.playlist_id == playlist_id)
-        .order_by(Video.position.asc())
+        .order_by(Video.is_new.desc(), Video.position.asc())
         .all()
     )

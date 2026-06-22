@@ -25,7 +25,9 @@ def test_sync_playlist_persists_videos(db_session):
     service.youtube.fetch_playlist = MagicMock(return_value=metadata)
 
     playlist = service.sync_playlist(db_session, playlist_id)
-    assert playlist.title == "Minha Playlist"
-    assert len(playlist.videos) == 1
-    assert playlist.videos[0].duration_seconds == 180
-    assert json.loads(playlist.videos[0].tags_json) == ["tag1"]
+    assert playlist.playlist.title == "Minha Playlist"
+    assert len(playlist.playlist.videos) == 1
+    assert playlist.playlist.videos[0].duration_seconds == 180
+    assert playlist.playlist.videos[0].is_new is True
+    assert playlist.new_videos_added == 1
+    assert json.loads(playlist.playlist.videos[0].tags_json) == ["tag1"]

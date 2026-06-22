@@ -61,3 +61,11 @@ def run_sqlite_migrations(engine) -> None:
                 "WHERE replay_duration_seconds = 8"
             )
         )
+
+        if "is_new" not in columns:
+            connection.execute(
+                text(
+                    "ALTER TABLE videos "
+                    "ADD COLUMN is_new BOOLEAN NOT NULL DEFAULT 0"
+                )
+            )

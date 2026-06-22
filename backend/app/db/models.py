@@ -47,6 +47,7 @@ class Video(Base):
     replay_duration_seconds: Mapped[int] = mapped_column(Integer, default=5)
     loop_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
     loop_count: Mapped[int] = mapped_column(Integer, default=0)
+    is_new: Mapped[bool] = mapped_column(Boolean, default=False)
 
     playlist: Mapped["Playlist"] = relationship(back_populates="videos")
     transcript: Mapped["Transcript | None"] = relationship(

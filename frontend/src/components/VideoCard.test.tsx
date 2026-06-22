@@ -20,6 +20,7 @@ const sampleVideo: Video = {
   replay_duration_seconds: 5,
   loop_enabled: false,
   loop_count: 0,
+  is_new: false,
 }
 
 const baseProps = {
@@ -90,5 +91,17 @@ describe('VideoCard', () => {
     expect(screen.getByTestId('replay-duration-select')).toHaveValue('15')
     expect(screen.getByTestId('loop-count-select')).toHaveValue('3')
     expect(screen.getByTestId('video-select-checkbox')).toBeChecked()
+  })
+
+  it('shows novidade badge when video is new', () => {
+    render(
+      <VideoCard
+        video={{ ...sampleVideo, is_new: true }}
+        isActive={false}
+        isSelected={false}
+        {...baseProps}
+      />,
+    )
+    expect(screen.getByTestId('video-new-badge')).toHaveTextContent('Novidade')
   })
 })

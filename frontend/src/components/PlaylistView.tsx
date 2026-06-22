@@ -52,6 +52,7 @@ export function PlaylistView({ playlist, onBack }: PlaylistViewProps) {
   const [activeVideoId, setActiveVideoId] = useState<string | null>(null)
   const [startAtSeconds, setStartAtSeconds] = useState<number | null>(null)
   const [syncing, setSyncing] = useState(false)
+  const [lastSyncMessage, setLastSyncMessage] = useState<string | null>(null)
   const [markingMoment, setMarkingMoment] = useState(false)
   const [momentSequenceActive, setMomentSequenceActive] = useState(false)
   const [videoSequenceActive, setVideoSequenceActive] = useState(false)
@@ -241,6 +242,17 @@ export function PlaylistView({ playlist, onBack }: PlaylistViewProps) {
     pendingMomentLoopRef.current = null
     setStartAtSeconds(null)
     setActiveVideoId(id)
+
+    if (video.is_new) {
+      void api.acknowledgeNewVideo(video.id).then(() => {
+        queryClient.setQueryData<Video[]>(['videos', playlist.id, searchQuery], (current) =>
+          current?.map((item) =>
+            item.id === video.id ? { ...item, is_new: false } : item,
+          ),
+        )
+        void queryClient.invalidateQueries({ queryKey: ['playlists'] })
+      })
+    }
   }
 
   const handleSelectedChange = (video: Video, selected: boolean) => {
@@ -352,9 +364,16 @@ export function PlaylistView({ playlist, onBack }: PlaylistViewProps) {
   const handleSync = async () => {
     setSyncing(true)
     try {
-      await api.syncPlaylist(playlist.id)
+      const result = await api.syncPlaylist(playlist.id)
       await queryClient.invalidateQueries({ queryKey: ['videos', playlist.id] })
       await queryClient.invalidateQueries({ queryKey: ['playlists'] })
+      if (result.new_videos_added > 0) {
+        setLastSyncMessage(
+          `+${result.new_videos_added} novidade${result.new_videos_added === 1 ? '' : 's'} neste sync`,
+        )
+      } else {
+        setLastSyncMessage('Nenhuma novidade neste sync')
+      }
     } finally {
       setSyncing(false)
     }
@@ -415,6 +434,11 @@ export function PlaylistView({ playlist, onBack }: PlaylistViewProps) {
         >
           {syncing ? '...' : 'Sync'}
         </button>
+        {lastSyncMessage && (
+          <span className="w-full text-xs text-emerald-300" data-testid="playlist-view-sync-message">
+            {lastSyncMessage}
+          </span>
+        )}
       </header>
 
       <div className="flex flex-1 flex-col md:min-h-[calc(100vh-57px)] md:flex-row">

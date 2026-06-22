@@ -11,6 +11,8 @@ export function PlaylistHome({ onOpenPlaylist }: PlaylistHomeProps) {
   const [playlistUrl, setPlaylistUrl] = useState('')
   const [formError, setFormError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const [syncingPlaylistId, setSyncingPlaylistId] = useState<number | null>(null)
+  const [syncMessages, setSyncMessages] = useState<Record<number, string>>({})
   const queryClient = useQueryClient()
 
   const { data: playlists = [], isLoading, error } = useQuery({
@@ -23,14 +25,36 @@ export function PlaylistHome({ onOpenPlaylist }: PlaylistHomeProps) {
     setFormError(null)
     setLoading(true)
     try {
-      const playlist = await api.createPlaylist(playlistUrl)
+      const result = await api.createPlaylist(playlistUrl)
       await queryClient.invalidateQueries({ queryKey: ['playlists'] })
       setPlaylistUrl('')
-      onOpenPlaylist(playlist)
+      onOpenPlaylist(result)
     } catch (err) {
       setFormError((err as Error).message)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleSync = async (playlist: Playlist) => {
+    setSyncingPlaylistId(playlist.id)
+    try {
+      const result = await api.syncPlaylist(playlist.id)
+      await queryClient.invalidateQueries({ queryKey: ['playlists'] })
+
+      const message =
+        result.new_videos_added > 0
+          ? `+${result.new_videos_added} novidade${result.new_videos_added === 1 ? '' : 's'} neste sync`
+          : 'Nenhuma novidade neste sync'
+
+      setSyncMessages((current) => ({ ...current, [playlist.id]: message }))
+    } catch (err) {
+      setSyncMessages((current) => ({
+        ...current,
+        [playlist.id]: (err as Error).message,
+      }))
+    } finally {
+      setSyncingPlaylistId(null)
     }
   }
 
@@ -39,7 +63,7 @@ export function PlaylistHome({ onOpenPlaylist }: PlaylistHomeProps) {
       <div>
         <h1 className="text-2xl font-bold">YouTube Playlist</h1>
         <p className="mt-2 text-sm text-slate-400">
-          Abra uma playlist salva ou adicione uma nova pelo link do YouTube.
+          Abra uma playlist salva, sincronize novidades ou adicione uma nova pelo link do YouTube.
         </p>
       </div>
 
@@ -52,7 +76,14 @@ export function PlaylistHome({ onOpenPlaylist }: PlaylistHomeProps) {
           {error && <p className="text-sm text-red-400">{(error as Error).message}</p>}
           <div className="flex flex-col gap-3">
             {playlists.map((playlist) => (
-              <PlaylistLibraryCard key={playlist.id} playlist={playlist} onSelect={onOpenPlaylist} />
+              <PlaylistLibraryCard
+                key={playlist.id}
+                playlist={playlist}
+                syncing={syncingPlaylistId === playlist.id}
+                lastSyncMessage={syncMessages[playlist.id] ?? null}
+                onSelect={onOpenPlaylist}
+                onSync={handleSync}
+              />
             ))}
           </div>
         </section>
