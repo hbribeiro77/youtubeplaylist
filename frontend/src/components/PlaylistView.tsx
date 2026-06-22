@@ -484,10 +484,14 @@ export function PlaylistView({ playlist, onBack }: PlaylistViewProps) {
           <SearchBar onSearch={handleSearch} />
 
           <div
-            className="flex flex-wrap items-center gap-2 border-b border-slate-800 px-3 py-2"
+            className="flex flex-col gap-2 border-b border-slate-800 px-3 py-2"
             data-testid="video-list-toolbar"
           >
-            <label className="flex items-center gap-2 text-sm text-slate-300">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+              Fila e filtros
+            </p>
+            <div className="flex flex-wrap items-center gap-2">
+            <label className="flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-900 px-2.5 py-1.5 text-sm text-slate-300">
               <input
                 type="checkbox"
                 data-testid="filter-with-moments"
@@ -539,6 +543,7 @@ export function PlaylistView({ playlist, onBack }: PlaylistViewProps) {
                 Parar momentos
               </button>
             )}
+            </div>
           </div>
 
           <div
@@ -567,7 +572,7 @@ export function PlaylistView({ playlist, onBack }: PlaylistViewProps) {
                 key={video.id}
                 ref={(el) => {
                   cardRefs.current[video.youtube_video_id] =
-                    el?.querySelector<HTMLButtonElement>('button') ?? null
+                    el?.querySelector<HTMLButtonElement>('button[type="button"]') ?? null
                 }}
               >
                 <VideoCard
